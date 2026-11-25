@@ -165,6 +165,19 @@ def git_lines(*args, root:)
   IO.popen(["git", "-C", root, *args], err: File::NULL, &:read).lines.map(&:strip).reject(&:empty?)
 end
 
+def git_z_paths(*args, root:)
+  raw = IO.popen(["git", "-C", root, *args], "rb", err: File::NULL, &:read)
+  raw.split("\0").reject(&:empty?).map { |s| s.force_encoding(Encoding::UTF_8).scrub("?") }
+end
+
+def git_porcelain_paths(*args, root:)
+  raw = IO.popen(["git", "-C", root, "status", "--porcelain=v1", "-z", "--no-renames", "-uall", *args], "rb", err: File::NULL, &:read)
+  raw.split("\0").reject(&:empty?).filter_map do |entry|
+    rel = entry.byteslice(3..)
+    rel.force_encoding(Encoding::UTF_8).scrub("?") if rel && !rel.empty?
+  end
+end
+
 def git_text(*args, root:)
   IO.popen(["git", "-C", root, *args], err: File::NULL, &:read)
 end
@@ -300,7 +313,8 @@ def base_ref_info_for_path(root, base, rel, base_oids, blob_cache, head_raw_by_r
   raw.is_a?(Symbol) ? raw : ref_info_for_text(raw)
 end
 
-def head_ref_info_for_path(root, rel)
+def head_ref_info_for_path(root, rel, head_ref_infos = nil)
+  return head_ref_infos[rel] if head_ref_infos && head_ref_infos.key?(rel)
   full = File.join(root, rel)
   return :missing unless File.file?(full)
   ref_info_for_text(File.binread(full))
@@ -384,10 +398,8 @@ ref_scan_error = nil
 begin
   if is_git
     all_paths = []
-    all_paths.concat(git_lines("diff", "--name-only", base, "HEAD", "--", "skills", "agent-context/session-start.md", root: root)) if base
-    all_paths.concat(git_lines("diff", "--name-only", "--", "skills", "agent-context/session-start.md", root: root))
-    all_paths.concat(git_lines("diff", "--cached", "--name-only", "--", "skills", "agent-context/session-start.md", root: root))
-    all_paths.concat(git_lines("ls-files", "--others", "--exclude-standard", "--", "skills", "agent-context/session-start.md", root: root))
+    all_paths.concat(git_z_paths("diff", "--name-only", "-z", base, "HEAD", "--", "skills", "agent-context/session-start.md", root: root)) if base
+    all_paths.concat(git_porcelain_paths("--", "skills", "agent-context/session-start.md", root: root))
     changed = all_paths.map { |p| p[%r{\Askills/[^/]+/SKILL\.md\z}] }.compact.uniq
     bootstrap_changed = all_paths.include?("agent-context/session-start.md")
     ref_changed = all_paths.select { |p| p.match?(REF_PATH_RE) }.reject { |p| p.match?(REF_LEDGER_RE) }.uniq
@@ -401,10 +413,46 @@ rescue StandardError => e
   warn "changed_reference_line_scan_skipped: #{err_msg}"
 end
 
-# Pre-batch any base blobs needed by changed SKILL.md, bootstrap, or changed references.
+# Pre-read head reference files so unchanged SHA-1 blobs in base reuse their
+# CR/CRLF-normalized line counts without spawning `git grep` or `git cat-file`.
+# The census is visibility only, so an unreadable or vanished file degrades the
+# COUNTER to unknown rather than aborting before per-file verdicts run.
+head_ref_over_count = 0
+head_ref_census_error = nil
+head_ref_infos = {}
+begin
+  Dir[File.join(root, "skills", "*", "references", "**", "*.md")].sort.each do |path|
+    rel = path.start_with?(root + "/") ? path[(root.length + 1)..] : path.sub(%r{\A\./}, "")
+    next unless rel.match?(REF_PATH_RE)
+    next if rel.match?(REF_LEDGER_RE)
+    info = begin
+      raw = File.binread(path)
+      head_raw_by_rel[rel] = raw
+      head_sha1_by_rel[rel] = Digest::SHA1.hexdigest("blob #{raw.bytesize}\0#{raw}")
+      parsed = ref_info_for_text(raw)
+      head_ref_infos[rel] = parsed
+      parsed
+    rescue StandardError => e
+      head_ref_census_error ||= "#{rel}: #{e.class.name}"
+      next
+    end
+    head_ref_over_count += 1 if info.is_a?(Hash) && info[:lines] > REF_LINE_MAX
+  end
+rescue StandardError => e
+  head_ref_census_error ||= e.class.name
+end
+
+base_ref_rels = if base_oids
+  base_oids.keys.select { |p| p.match?(REF_PATH_RE) && !p.match?(REF_LEDGER_RE) }
+else
+  []
+end
+
+# Pre-batch any base blobs needed by changed SKILL.md, bootstrap, changed references,
+# or changed/deleted base references needed for the base over-limit census.
 if base && base_oids
   needed = []
-  (changed + ref_changed + (bootstrap_changed ? ["agent-context/session-start.md"] : [])).each do |rel|
+  (changed + ref_changed + base_ref_rels + (bootstrap_changed ? ["agent-context/session-start.md"] : [])).uniq.each do |rel|
     oid = base_oids[rel]
     needed << oid if oid && head_sha1_by_rel[rel] != oid && !blob_cache.key?(oid)
   end
@@ -577,45 +625,31 @@ ref_partials = []
 # false-green a real growth, so it fails closed as a partial.
 ref_partials << "skills/*/references: changed-detection failed (#{ref_scan_error}) — line-budget check unavailable (fail-closed)" if ref_scan_error
 
-# The census is visibility only, so an unreadable or vanished file must degrade the
-# COUNTER to unknown rather than abort the program: aborting here would skip the
-# per-file fail-closed partials below and emit no verdict token at all.
-head_ref_over_count = 0
-head_ref_census_error = nil
-begin
-  Dir[File.join(root, "skills", "*", "references", "**", "*.md")].each do |path|
-    rel = path.start_with?(root + "/") ? path[(root.length + 1)..] : path.sub(%r{\A\./}, "")
-    next unless rel.match?(REF_PATH_RE)
-    next if rel.match?(REF_LEDGER_RE)
-    info = begin
-      head_ref_info_for_path(root, rel)
-    rescue StandardError => e
-      head_ref_census_error ||= "#{rel}: #{e.class.name}"
-      next
-    end
-    head_ref_over_count += 1 if info.is_a?(Hash) && info[:lines] > REF_LINE_MAX
-  end
-rescue StandardError => e
-  head_ref_census_error ||= e.class.name
-end
 if head_ref_census_error
   warn "reference_line_census_partial: head over-limit census incomplete (#{head_ref_census_error}) — counter reported unknown; per-file verdicts below are unaffected"
   head_ref_over_count = nil
 end
 base_ref_over_count = nil
 if base
-  begin
-    base_ref_over_count = 0
-    git_lines("grep", "-c", "-e", "", base, "--", "skills", root: root).each do |line|
-      rest, _, cnt = line.rpartition(":")
-      _, _, rel = rest.partition(":")
-      next unless rel.match?(REF_PATH_RE)
-      next if rel.match?(REF_LEDGER_RE)
-      base_ref_over_count += 1 if cnt.to_i > REF_LINE_MAX
+  if base_oids
+    begin
+      base_ref_over_count = 0
+      base_ref_rels.each do |rel|
+        oid = base_oids[rel]
+        info = if head_sha1_by_rel[rel] == oid && head_ref_infos.key?(rel)
+          head_ref_infos[rel]
+        else
+          base_ref_info_for_path(root, base, rel, base_oids, blob_cache, head_raw_by_rel, head_sha1_by_rel)
+        end
+        raise "missing base blob #{oid} for #{rel}" unless info.is_a?(Hash)
+        base_ref_over_count += 1 if info[:lines] > REF_LINE_MAX
+      end
+    rescue StandardError => e
+      base_ref_over_count = nil
+      warn "reference_line_trend_partial: base=unknown reason=#{e.class.name}"
     end
-  rescue StandardError => e
-    base_ref_over_count = nil
-    warn "reference_line_trend_partial: base=unknown reason=#{e.class.name}"
+  else
+    warn "reference_line_trend_partial: base=unknown reason=base_oids_unavailable"
   end
 end
 puts "reference_line_over_limit_count_base=#{base_ref_over_count.nil? ? "unknown" : base_ref_over_count}"
@@ -626,7 +660,7 @@ puts "reference_line_over_limit_count_delta=#{(base_ref_over_count.nil? || head_
 Dir[File.join(root, "skills", "*", "references", "source-register.md")].sort.each do |path|
   rel = path.start_with?(root + "/") ? path[(root.length + 1)..] : path.sub(%r{\A\./}, "")
   info = begin
-    head_ref_info_for_path(root, rel)
+    head_ref_info_for_path(root, rel, head_ref_infos)
   rescue StandardError
     :missing
   end
@@ -637,7 +671,7 @@ end
 
 ref_changed.sort.each do |rel|
   begin
-    head_info = head_ref_info_for_path(root, rel)
+    head_info = head_ref_info_for_path(root, rel, head_ref_infos)
   rescue StandardError => e
     ref_partials << "#{rel}: head lines unreadable (#{e.class.name}) — line-budget check unavailable (fail-closed)"
     next

@@ -49,6 +49,55 @@ READ_TOOLS = ("Read", "Grep", "Glob")
 # can serve any model, so only these make an unnamed model id Kimi.
 MOONSHOT_HOSTS = ("moonshot.cn", "moonshot.ai", "kimi.com")
 
+GIT_REPOSITORY_ROUTING_ENV = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_IMPLICIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_NAMESPACE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+    "GIT_GRAFT_FILE",
+    "GIT_SHALLOW_FILE",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_PREFIX",
+    "GIT_INTERNAL_SUPER_PREFIX",
+    "GIT_QUARANTINE_PATH",
+    "GIT_GLOB_PATHSPECS",
+    "GIT_NOGLOB_PATHSPECS",
+    "GIT_LITERAL_PATHSPECS",
+    "GIT_ICASE_PATHSPECS",
+    "GIT_EXTERNAL_DIFF",
+    "GIT_DIFF_OPTS",
+)
+GIT_CONFIG_ROUTING_ENV = (
+    "GIT_TEMPLATE_DIR",
+    "GIT_CONFIG",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_SYSTEM",
+    "GIT_CONFIG_NOSYSTEM",
+    "GIT_CONFIG_PARAMETERS",
+)
+GIT_CONFIG_ROUTING_ENV_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
+
+
+def git_environment(base_env: Optional[dict] = None) -> dict:
+    """Return an environment with inherited Git repository/config routing stripped."""
+    environment = dict(os.environ if base_env is None else base_env)
+    for key in tuple(environment):
+        if (
+            key in GIT_REPOSITORY_ROUTING_ENV
+            or key in GIT_CONFIG_ROUTING_ENV
+            or key.startswith(GIT_CONFIG_ROUTING_ENV_PREFIXES)
+        ):
+            environment.pop(key, None)
+    return environment
+
 
 class Interrupted(Exception):
     """The runner was told to stop; the reviewer in flight is killed."""
@@ -134,7 +183,8 @@ class Codex(Client):
         home, model, provider = private_codex_home(source)
         meta.update(model=model or "", provider=provider or "openai")
         answer = os.path.join(home, "answer.txt")
-        env = dict(os.environ, CODEX_HOME=home)
+        env = git_environment()
+        env["CODEX_HOME"] = home
         cmd = ["codex", "exec", "-C", cwd, "-s", "read-only", "--ephemeral", "-o", answer, "-"]
         try:
             run = run_child(cmd, prompt, cwd, env, timeout)
@@ -155,7 +205,7 @@ class Claude(Client):
         cmd = ["claude", "-p", "--tools", *READ_TOOLS, "--add-dir", diff_dir,
                "--permission-mode", "dontAsk", "--setting-sources", "", "--strict-mcp-config",
                "--no-session-persistence", "--output-format", "text"]
-        return run_child(cmd, prompt, cwd, dict(os.environ), timeout)
+        return run_child(cmd, prompt, cwd, git_environment(), timeout)
 
 
 class OpenCode(Client):
@@ -170,7 +220,7 @@ class OpenCode(Client):
         meta.update(model=model or "")
         root = private_opencode_root(model, providers, [cwd, diff_dir])
         project = os.path.join(root, "project")
-        env = dict(os.environ)
+        env = git_environment()
         for name in ("OPENCODE_CONFIG", "OPENCODE_CONFIG_DIR", "OPENCODE_CONFIG_CONTENT", "OPENCODE_PERMISSION"):
             env.pop(name, None)
         env.update(XDG_CONFIG_HOME=os.path.join(root, "config"), XDG_DATA_HOME=os.path.join(root, "data"),
@@ -195,7 +245,7 @@ class Kimi(Client):
         model, kept = snapshot
         home = private_kimi_home(kimi_source(), kept)
         meta.update(model=model or "")
-        env = dict(os.environ)
+        env = git_environment()
         env.pop("KIMI_CODE_TRUST_WORKSPACE", None)  # an untrusted workspace loads no project MCP or config
         env.update(KIMI_CODE_HOME=home, KIMI_CODE_WATCH="0", KIMI_DISABLE_TELEMETRY="1",
                    KIMI_CODE_NO_AUTO_UPDATE="1", KIMI_CLI_NO_AUTO_UPDATE="1")
@@ -495,7 +545,23 @@ def private_opencode_root(model: str, providers: dict, read_dirs: list) -> str:
         config["provider"] = {provider: providers[provider]}
     for sub in ("config/opencode", "data/opencode", "state", "project"):
         os.makedirs(os.path.join(root, sub))
-    subprocess.run(["git", "init", "-q", os.path.join(root, "project")], check=True, capture_output=True)
+    subprocess.run(
+        [
+            "git",
+            "--no-pager",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "init",
+            "-q",
+            os.path.join(root, "project"),
+        ],
+        check=True,
+        capture_output=True,
+        stdin=subprocess.DEVNULL,
+        env=git_environment(),
+    )
     write_private(os.path.join(root, "config", "opencode", "opencode.json"), json.dumps(config))
     data_home = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
     link_if_present(data_home / "opencode" / "auth.json", os.path.join(root, "data", "opencode", "auth.json"))

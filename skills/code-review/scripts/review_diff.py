@@ -54,6 +54,55 @@ SCHEMA_VERSION = 3  # the envelope check_review_evidence_present.py accepts
 FINDING = re.compile(r"^\s*\[(P[0-3])\]\s+(.+?)\s+[—–-]{1,2}\s+(\S+?):(\d+)\s*$")
 DIAG_LIMIT = 20000  # bytes of answer and of stderr kept in the private diagnostics file
 
+GIT_REPOSITORY_ROUTING_ENV = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_IMPLICIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_NAMESPACE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+    "GIT_GRAFT_FILE",
+    "GIT_SHALLOW_FILE",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_PREFIX",
+    "GIT_INTERNAL_SUPER_PREFIX",
+    "GIT_QUARANTINE_PATH",
+    "GIT_GLOB_PATHSPECS",
+    "GIT_NOGLOB_PATHSPECS",
+    "GIT_LITERAL_PATHSPECS",
+    "GIT_ICASE_PATHSPECS",
+    "GIT_EXTERNAL_DIFF",
+    "GIT_DIFF_OPTS",
+)
+GIT_CONFIG_ROUTING_ENV = (
+    "GIT_TEMPLATE_DIR",
+    "GIT_CONFIG",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_SYSTEM",
+    "GIT_CONFIG_NOSYSTEM",
+    "GIT_CONFIG_PARAMETERS",
+)
+GIT_CONFIG_ROUTING_ENV_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
+
+
+def git_environment(base_env: Optional[dict] = None) -> dict:
+    """Return an environment with inherited Git repository/config routing stripped."""
+    environment = dict(os.environ if base_env is None else base_env)
+    for key in tuple(environment):
+        if (
+            key in GIT_REPOSITORY_ROUTING_ENV
+            or key in GIT_CONFIG_ROUTING_ENV
+            or key.startswith(GIT_CONFIG_ROUTING_ENV_PREFIXES)
+        ):
+            environment.pop(key, None)
+    return environment
+
 # Replayed on past changes with known defects, a reviewer told to drop what it
 # cannot prove from the code found about half as many of them
 # (specs/diff-first-review/evidence/replay.md).
@@ -84,15 +133,17 @@ class Git:
 
     def __init__(self, cwd: str):
         self.cwd = cwd
-        self.safety = ["-c", "core.fsmonitor=false"]
+        self.safety = ["--no-pager", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"]
 
     def raw(self, *args: str) -> bytes:
         return subprocess.run(["git", "-C", self.cwd, *self.safety, *args],
-                              check=True, capture_output=True).stdout
+                              check=True, capture_output=True,
+                              stdin=subprocess.DEVNULL, env=git_environment()).stdout
 
     def out(self, *args: str) -> str:
         return subprocess.run(["git", "-C", self.cwd, *self.safety, *args],
-                              check=True, capture_output=True, text=True).stdout.strip()
+                              check=True, capture_output=True, text=True,
+                              stdin=subprocess.DEVNULL, env=git_environment()).stdout.strip()
 
     def neutralize_filters(self) -> None:
         """Replace every configured filter driver with a pass-through."""
@@ -110,18 +161,20 @@ class Git:
         out = self.raw("ls-files", "-z", "--others", "--exclude-standard")
         return sorted(p.decode("utf-8", "surrogateescape") for p in out.split(b"\0") if p)
 
-    def digest(self) -> str:
+    def digest(self, head: Optional[str] = None, untracked: Optional[list] = None) -> str:
         """Digest of HEAD and the working tree against it, untracked files included.
 
         Computed without writing objects: staging the tree would store working-tree
         bytes (with filters switched off, possibly plaintext) in the object store."""
-        digest = hashlib.sha256(self.out("rev-parse", "HEAD").encode("ascii") + b"\0")
+        resolved_head = self.out("rev-parse", "HEAD") if head is None else head
+        digest = hashlib.sha256(resolved_head.encode("ascii") + b"\0")
         digest.update(self.raw("diff", "--binary", "--no-ext-diff", "--no-textconv", "HEAD"))
 
         def frame(kind: bytes, data: bytes) -> None:
             digest.update(kind + len(data).to_bytes(8, "big") + data)
 
-        for rel in self.untracked():
+        entries = self.untracked() if untracked is None else untracked
+        for rel in entries:
             path = os.path.join(self.cwd, rel)
             frame(b"P", rel.encode("utf-8", "surrogateescape"))
             if os.path.islink(path):
@@ -149,11 +202,20 @@ class Candidate:
 
     @classmethod
     def bind(cls, path: str, base_ref: Optional[str]) -> "Candidate":
-        root = Git(str(Path(path).resolve())).out("rev-parse", "--show-toplevel")
+        resolved = str(Path(path).resolve())
+        rev_lines = Git(resolved).out(
+            "rev-parse", "--show-toplevel", "--absolute-git-dir", "HEAD"
+        ).splitlines()
+        if len(rev_lines) != 3 or not rev_lines[0]:
+            raise subprocess.CalledProcessError(
+                128,
+                ["git", "rev-parse", "--show-toplevel"],
+                stderr="fatal: this operation must be run in a work tree\n",
+            )
+        root, git_dir_raw, head = rev_lines[0], rev_lines[1], rev_lines[2]
         git = Git(root)
         git.neutralize_filters()
-        git_dir = Path(git.out("rev-parse", "--absolute-git-dir"))
-        head = git.out("rev-parse", "HEAD")
+        git_dir = Path(git_dir_raw)
         if not base_ref:
             try:
                 base_ref = git.out("symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD")
@@ -161,7 +223,17 @@ class Candidate:
                 base_ref = "origin/main"
         base = git.out("merge-base", "HEAD", base_ref)
         clean = git.out("status", "--porcelain", "--untracked-files=all") == ""
-        return cls(git, root, git_dir, head, base, clean, git.untracked(), git.digest())
+        untracked = git.untracked()
+        return cls(
+            git,
+            root,
+            git_dir,
+            head,
+            base,
+            clean,
+            untracked,
+            git.digest(head=head, untracked=untracked),
+        )
 
     def save_diff(self, path: str) -> int:
         """Write the diff against the base for the reviewer; return how many files it touches."""
