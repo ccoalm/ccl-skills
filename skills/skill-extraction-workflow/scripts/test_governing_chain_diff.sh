@@ -556,34 +556,76 @@ $NBSP
    $HOST_A
 "
 
+run_case "fence: marker-line fence (- \`\`\`) skips inner list & closes on dedent" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+- \`\`\`markdown
+  - Illustrative list rule inside marker-line fence.
+
+$HOST_A
+  - $OBLIGATION
+" \
+"## Core Rules
+
+- \`\`\`markdown
+  - Illustrative list rule inside marker-line fence.
+
+$HOST_A
+"
+
+run_case "fence: 5-space indented code on list-marker line keeps content_indent at marker+1" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+-     indented_code_on_marker_line()
+
+  \`\`\`markdown
+  - Illustrative list rule inside 2-space fence of item with 5-space first line.
+
+$HOST_A
+  - $OBLIGATION
+" \
+"## Core Rules
+
+-     indented_code_on_marker_line()
+
+  \`\`\`markdown
+  - Illustrative list rule inside 2-space fence of item with 5-space first line.
+
+$HOST_A
+"
+
 lazy_env_check="$(GIT_NO_LAZY_FETCH=0 GIT_DIR=/poison python3 - "$TOOL" <<'PYEOF'
-import importlib.util, sys
+import importlib.util, os, sys
 spec = importlib.util.spec_from_file_location('gcd', sys.argv[1])
 m = importlib.util.module_from_spec(spec)
 sys.modules['gcd'] = m
 spec.loader.exec_module(m)
 clean = m._git_clean_env()
-print("ok" if clean.get("GIT_NO_LAZY_FETCH") == "1" and "GIT_DIR" not in clean else f"bad:{clean.get('GIT_NO_LAZY_FETCH')!r}")
+ok = (
+    clean.get("GIT_NO_LAZY_FETCH") == "1"
+    and clean.get("GIT_CONFIG_GLOBAL") == os.devnull
+    and clean.get("GIT_CONFIG_SYSTEM") == os.devnull
+    and "GIT_DIR" not in clean
+)
+print(
+    "ok"
+    if ok
+    else f"bad:lazy={clean.get('GIT_NO_LAZY_FETCH')!r},global={clean.get('GIT_CONFIG_GLOBAL')!r},sys={clean.get('GIT_CONFIG_SYSTEM')!r}"
+)
 PYEOF
 )"
 if [ "$lazy_env_check" = "ok" ]; then
-  printf 'PASS %s\n' "git: _git_clean_env sets GIT_NO_LAZY_FETCH=1 after scrubbing GIT_*"
+  printf 'PASS %s\n' "git: _git_clean_env sets GIT_NO_LAZY_FETCH=1 & GIT_CONFIG_GLOBAL/SYSTEM=/dev/null"
   pass=$((pass + 1))
 else
-  printf 'FAIL %-46s got %s\n' "git: _git_clean_env sets GIT_NO_LAZY_FETCH=1 after scrubbing GIT_*" "$lazy_env_check"
+  printf 'FAIL %-46s got %s\n' "git: _git_clean_env sets GIT_NO_LAZY_FETCH=1 & GIT_CONFIG_GLOBAL/SYSTEM=/dev/null" "$lazy_env_check"
   fail=$((fail + 1))
 fi
 
 mkdir -p "$WORK/githome" "$WORK/xdg/git" "$WORK/caller-bad-xdg/git"
-cat >"$WORK/caller-bad-xdg/git/config" <<'GITCFG'
-[filter "poison"]
-	clean = false
-	smudge = false
-	required = true
-GITCFG
-printf '* filter=poison\n' >"$WORK/caller-bad-xdg/git/attributes"
+printf '[core\n\tbroken = true\n' >"$WORK/caller-bad-xdg/git/config"
+printf '[core\n\tbroken = true\n' >"$WORK/caller-bad-xdg/.gitconfig"
 if (
-  export XDG_CONFIG_HOME="$WORK/caller-bad-xdg"
   (
     while IFS='=' read -r k _; do
       case "$k" in GIT_*) unset "$k" ;; esac
@@ -593,16 +635,19 @@ if (
     git -C "$WORK/gitrepo" config user.email "test@example.invalid" &&
     git -C "$WORK/gitrepo" config user.name "Test" &&
     git -C "$WORK/gitrepo" config commit.gpgsign false &&
+    git -C "$WORK/gitrepo" config uploadpack.allowFilter true &&
+    git -C "$WORK/gitrepo" config uploadpack.allowAnySHA1InWant true &&
     printf '## Core Rules\n\n%s\n  - %s\n' "$HOST_A" "$OBLIGATION" >"$WORK/gitrepo/doc.md" &&
     git -C "$WORK/gitrepo" add doc.md &&
     git -C "$WORK/gitrepo" -c core.hooksPath=/dev/null commit -q -m "base" &&
     printf '## Core Rules\n\n%s\n' "$HOST_A" >"$WORK/gitrepo/doc.md" &&
     git -C "$WORK/gitrepo" add doc.md &&
     git -C "$WORK/gitrepo" -c core.hooksPath=/dev/null commit -q -m "drop" &&
-    git -C "$WORK/gitrepo" replace -f HEAD HEAD~1
+    git -C "$WORK/gitrepo" replace -f HEAD HEAD~1 &&
+    git clone -q --no-checkout --filter=blob:none "file://$WORK/gitrepo" "$WORK/partial-repo"
   )
 ); then
-  rev_out="$(HOME="$WORK/githome" XDG_CONFIG_HOME="$WORK/xdg" \
+  rev_out="$(HOME="$WORK/caller-bad-xdg" XDG_CONFIG_HOME="$WORK/caller-bad-xdg" \
     GIT_DIR="$WORK/poison-git-dir" GIT_WORK_TREE="$WORK/poison-wt" \
     GIT_INDEX_FILE="$WORK/poison.idx" GIT_CONFIG_PARAMETERS="'core.worktree=/nonexistent'" \
     GIT_TRACE="$WORK/poison-trace.log" \
@@ -613,6 +658,23 @@ if (
     pass=$((pass + 1))
   else
     printf 'FAIL %-46s rc=%s out=%s\n' "git: --rev isolates XDG/HOME, scrubs GIT_* (incl. GIT_TRACE), & ignores replace refs" "$rev_rc" "$rev_out"
+    fail=$((fail + 1))
+  fi
+
+  cat >"$WORK/spy-upload-pack.sh" <<EOF
+#!/usr/bin/env bash
+: > "$WORK/lazy-fetched.marker"
+exec git-upload-pack "\$@"
+EOF
+  chmod +x "$WORK/spy-upload-pack.sh"
+  git -C "$WORK/partial-repo" config remote.origin.uploadpack "$WORK/spy-upload-pack.sh"
+  partial_out="$(GIT_NO_LAZY_FETCH=0 python3 "$TOOL" --repo "$WORK/partial-repo" --rev HEAD~1 HEAD doc.md 2>&1)"
+  partial_rc=$?
+  if [ "$partial_rc" -eq 2 ] && [ ! -e "$WORK/lazy-fetched.marker" ] && grep -q 'cannot read HEAD~1:doc.md' <<<"$partial_out"; then
+    printf 'PASS %s\n' "git: --rev enforces GIT_NO_LAZY_FETCH=1 on promisor missing blobs"
+    pass=$((pass + 1))
+  else
+    printf 'FAIL %-46s rc=%s marker=%s out=%s\n' "git: --rev enforces GIT_NO_LAZY_FETCH=1 on promisor missing blobs" "$partial_rc" "$([ -e "$WORK/lazy-fetched.marker" ] && echo present || echo absent)" "$partial_out"
     fail=$((fail + 1))
   fi
 else

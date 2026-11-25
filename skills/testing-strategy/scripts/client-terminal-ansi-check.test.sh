@@ -57,7 +57,7 @@ assert_hit  "Go \\x1b[ literal"                  "colors.go"   "$tmp/src/colors.
 assert_hit  "Go \\033[ and \\e[ literals"        "hardcoded ANSI/OSC escape literal" "$tmp/src/colors.go"
 assert_hit  "TS \\u001b[ and \\u{1b}[ literals"  "colors.ts"   "$tmp/src/colors.ts"
 # exact count: colors.go has 3 escape lines, colors.ts has 2 → 5 over the dir
-got=$(python3 "$script" "$tmp/src" 2>/dev/null | grep -c "client-ansi smell:" || true)
+got=$(python3 -B -W error "$script" "$tmp/src" 2>/dev/null | grep -c "client-ansi smell:" || true)
 if [ "$got" = 5 ]; then pass=$((pass+1)); echo "ok   - src finding count == 5"; else fail=$((fail+1)); echo "FAIL - src count: want 5 got $got"; fi
 # regression (challenge R1): OSC escapes (\x1b] — hyperlink / OSC-52 clipboard) must be caught, not just CSI
 cat > "$tmp/osc.ts" <<'EOF'
@@ -75,14 +75,14 @@ assert_hit  "--allow=render does NOT exempt surrender.ts" "hardcoded ANSI/OSC es
 # lexical segment normalization: .. traversal must NOT inherit parent segment exemption,
 # --allow=.. / --allow=. must NOT wildcard relative paths, and --allow=./render must exempt render/ansi.go.
 assert_hit  "--allow=render does NOT exempt render/../src/colors.go traversal" "hardcoded ANSI/OSC escape literal" "$tmp/render/../src/colors.go" --allow=render
-if (cd "$tmp/render" && python3 -W error "$script" "../src/colors.go" --allow=.. >/dev/null 2>&1); then
+if (cd "$tmp/render" && python3 -B -W error "$script" "../src/colors.go" --allow=.. >/dev/null 2>&1); then
   fail=$((fail+1)); echo "FAIL - --allow=.. exempted ../src/colors.go"
 else
   rc=$?
   if [ "$rc" = 1 ]; then pass=$((pass+1)); echo "ok   - --allow=.. does NOT exempt ../src/colors.go"
   else fail=$((fail+1)); echo "FAIL - --allow=.. expected exit 1, got $rc"; fi
 fi
-if (cd "$tmp" && python3 -W error "$script" "render/ansi.go" --allow=./render >/dev/null 2>&1); then
+if (cd "$tmp" && python3 -B -W error "$script" "render/ansi.go" --allow=./render >/dev/null 2>&1); then
   pass=$((pass+1)); echo "ok   - --allow=./render exempts render/ansi.go (0)"
 else
   fail=$((fail+1)); echo "FAIL - --allow=./render rejected render/ansi.go"
@@ -131,6 +131,14 @@ cp "$tmp/src/colors.go" "$tmp/markerless/src/colors.go"
 ln -s "../../src/colors.go" "$tmp/markerless/render/nested/escape.go"
 assert_hit  "markerless symlink render/nested/escape.go -> ../../src/colors.go NOT exempted" "hardcoded ANSI/OSC escape literal" "$tmp/markerless/render/nested/escape.go" --allow=render
 rm -f "$tmp/markerless/render/nested/escape.go"
+rm -f "$tmp/markerless/src/colors.go"
+ln -s "$tmp/other/render/colors.go" "$tmp/markerless/src/ext_sym.go"
+assert_hit  "markerless directory scan does NOT exempt escaping symlink to sibling render/" "hardcoded ANSI/OSC escape literal" "$tmp/markerless" --allow=render
+rm -f "$tmp/markerless/src/ext_sym.go"
+bs_dir="$tmp/markerless_bs/render\\box"
+mkdir -p "$bs_dir"
+cp "$tmp/src/colors.go" "$bs_dir/colors.go"
+assert_hit  "POSIX literal backslash in render\\box directory name NOT split as render/" "hardcoded ANSI/OSC escape literal" "$bs_dir/colors.go" --allow=render
 # regression (challenge R2): .mts scanned + padded-zero \u{001b} caught (printf %s keeps literal text)
 printf '%s\n' 'const a = "\u{001b}[31m"' > "$tmp/mod.mts"
 assert_hit  ".mts + padded \\u{001b} caught" "hardcoded ANSI/OSC escape literal" "$tmp/mod.mts"
@@ -166,7 +174,7 @@ if [ "$(id -u)" -ne 0 ]; then
   mkdir -p "$tmp/locked_parent/sub"
   cp "$tmp/src/colors.go" "$tmp/locked_parent/sub/colors.go"
   chmod 000 "$tmp/locked_parent/sub"
-  set +e; lock_err="$(python3 -W error "$script" "$tmp/locked_parent" 2>&1 >/dev/null)"; lock_rc=$?; set -e
+  set +e; lock_err="$(python3 -B -W error "$script" "$tmp/locked_parent" 2>&1 >/dev/null)"; lock_rc=$?; set -e
   chmod 700 "$tmp/locked_parent/sub"
   if [ "$lock_rc" = 2 ] && grep -qF "cannot read part of scope" <<<"$lock_err"; then
     pass=$((pass+1)); echo "ok   - unreadable subdir reports cannot read part of scope (2)"

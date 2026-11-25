@@ -259,6 +259,16 @@ def test_parse_junit_malformed_xml_returns_empty(tmp_path, capsys):
     assert r_nested_ns["parsed_suites"] == 0
     assert r_nested_ns["missing_files"] == [str(nested_ns_xml)]
 
+    attr_ns_xml = tmp_path / "attr_ns_junit.xml"
+    attr_ns_xml.write_text(
+        '<?xml version="1.0"?><testsuite name="s">'
+        '<testcase xmlns:ns="urn:junit:attr" ns:name="t_fail" classname="m"><failure>boom</failure></testcase>'
+        '</testsuite>'
+    )
+    r_attr_ns = g.collect_results([{"name": "attr-ns", "results_file": str(attr_ns_xml)}])
+    assert r_attr_ns["parsed_suites"] == 0
+    assert r_attr_ns["missing_files"] == [str(attr_ns_xml)]
+
     cov_xml = tmp_path / "cov_as_junit.xml"
     cov_xml.write_text('<?xml version="1.0"?><coverage line-rate="0.9"/>')
     r_cov = g.collect_results([{"name": "cov-mistake", "results_file": str(cov_xml)}])
@@ -341,15 +351,21 @@ def test_full_bitable_mode_mixed_corrupt_xml_default_fail_on_preserves_baseline(
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     doc_captured = tmp_path / "published-doc.md"
+    upsert_captured = tmp_path / "upsert.json"
     lark_stub = bin_dir / "lark-cli"
     lark_stub.write_text(
         "#!/usr/bin/env python3\n"
         "import json, pathlib, sys\n"
         "args = sys.argv[1:]\n"
         "if '+record-list' in args:\n"
-        "    print(json.dumps({'data': {'items': [{'record_id': 'rec1', 'fields': {"
-        "'用例ID': 'TC-UNIT-001', '模块': '核心', '功能点': '单测', '优先级': 'P0', "
-        "'状态': '通过', '测试层级': 'unit', '测试类型': 'api-automation', '信息流转': '[init] ok'}}], 'has_more': False}}))\n"
+        "    print(json.dumps({'data': {"
+        "'fields': ['用例ID', '模块', '功能点', '优先级', '状态', '测试层级', '测试类型', '信息流转'], "
+        "'data': [['TC-UNIT-001', '核心', '单测', 'P0', '未测试', 'unit', 'api-automation', '[init] ok']], "
+        "'record_id_list': ['rec1'], 'has_more': False}}))\n"
+        "elif '+record-upsert' in args:\n"
+        "    payload = args[args.index('--json') + 1]\n"
+        f"    pathlib.Path({str(upsert_captured)!r}).write_text(payload, encoding='utf-8')\n"
+        "    print('{}')\n"
         "elif '+update' in args:\n"
         "    md = args[args.index('--markdown') + 1]\n"
         f"    pathlib.Path({str(doc_captured)!r}).write_text(md, encoding='utf-8')\n"
@@ -385,6 +401,8 @@ def test_full_bitable_mode_mixed_corrupt_xml_default_fail_on_preserves_baseline(
         capture_output=True, text=True, env=env,
     )
     assert ok_proc.returncode == 0
+    assert json.loads(upsert_captured.read_text(encoding="utf-8"))["状态"] == "通过"
+    assert "| 核心 | 1 | 1 |" in doc_captured.read_text(encoding="utf-8")
     assert json.loads(lr_path.read_text(encoding="utf-8"))["linked"] == {"TC-UNIT-001": "通过"}
 
     baseline_bytes = json.dumps({
@@ -392,22 +410,30 @@ def test_full_bitable_mode_mixed_corrupt_xml_default_fail_on_preserves_baseline(
         "timestamp": "x", "linked": {"TC-UNIT-001": "通过"},
     }).encode("utf-8")
     lr_path.write_bytes(baseline_bytes)
-    api_xml.write_text('<?xml version="1.0"?><testsuite name="api"><testcase')
-    proc_live = g.subprocess.run(
-        [sys.executable, str(Path(g.__file__).resolve()), "--config", str(cfg_path)],
-        capture_output=True, text=True, env=env,
-    )
-    assert proc_live.returncode == 1
-    published = doc_captured.read_text(encoding="utf-8")
-    assert "🚨 基础设施失败" in published
-    assert "❌ 不建议发布" in published
-    assert lr_path.read_bytes() == baseline_bytes
+    for bad_payload in (
+        '<?xml version="1.0"?><testsuite name="api"><testcase',
+        '<?xml version="1.0"?><testsuite xmlns="urn:junit" name="api"><testcase classname="m" name="t_api"><failure>x</failure></testcase></testsuite>',
+        '<?xml version="1.0"?><testsuite name="api"><testcase xmlns:ns="urn:x" ns:name="t_api" classname="m"><failure>x</failure></testcase></testsuite>',
+    ):
+        api_xml.write_text(bad_payload)
+        proc_live = g.subprocess.run(
+            [sys.executable, str(Path(g.__file__).resolve()), "--config", str(cfg_path)],
+            capture_output=True, text=True, env=env,
+        )
+        assert proc_live.returncode == 1
+        published = doc_captured.read_text(encoding="utf-8")
+        assert "| 核心 | 1 | 1 |" in published
+        assert "🚨 基础设施失败" in published
+        assert "❌ 不建议发布" in published
+        assert lr_path.read_bytes() == baseline_bytes
 
     proc_dry = g.subprocess.run(
         [sys.executable, str(Path(g.__file__).resolve()), "--config", str(cfg_path), "--dry-run"],
         capture_output=True, text=True, env=env,
     )
     assert proc_dry.returncode == 1
+    assert "| 核心 | 1 | 0 |" in proc_dry.stdout
+    assert "would update 1 TC results" in proc_dry.stderr
     assert "🚨 基础设施失败" in proc_dry.stdout
     assert "❌ 不建议发布" in proc_dry.stdout
     assert lr_path.read_bytes() == baseline_bytes

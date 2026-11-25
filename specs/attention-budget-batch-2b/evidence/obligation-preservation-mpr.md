@@ -18,7 +18,7 @@ Aliases: `MPR_SKILL`=`skills/multi-perspective-research/SKILL.md`, `MPR_PDA`=`..
 |作者判断句显式带「判断」类标记；|`MPR_SKILL#012`(`rw`)|`MPR_ECPM:13` `§合成简报主张状态三态细则`|`rehosted`|`c=1`(`作者判断句显式带「判断」类标记；`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
 |证据只撑到推论级就用分级句式写（如「机…|`MPR_SKILL#013`(`rw`)|`MPR_ECPM:13` `§合成简报主张状态三态细则`|`rehosted`|`c=1`(`证据只撑到推论级就用分级句式写（如「机制可…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
 |三态管**解释性/推断性主张**，直接…|`MPR_SKILL#014`(`rw`)|`MPR_ECPM:13` `§合成简报主张状态三态细则`|`rehosted`|`c=1`(`三态管**解释性/推断性主张**，直接观测…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
-|**约束覆盖简报全部此类主张**——一…|`MPR_SKILL#015`(`rw`)|`MPR_ECPM:13` `§合成简报主张状态三态细则`|`rehosted`|`c=1`(`**约束覆盖简报全部此类主张**——一段话…`),`q:`不得`=14`;moved to reference|
+|**约束覆盖简报全部此类主张**——一…|`MPR_SKILL#015`(`rw`)|`MPR_ECPM:13` `§合成简报主张状态三态细则`|`rehosted`|`c=1`(`**约束覆盖简报全部此类主张**——一段话…`),`q:`不得`=13`;moved to reference|
 |** 即使 `grounded` 的全…|`MPR_SKILL#016`(`rw`)|`MPR_ECPM:19` `§源内配平与边界核对`|`rehosted`|`c=1`(`即使 `grounded` 的全部条件都满…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
 |法定报表常在同一行同时给出分项与行合计…|`MPR_SKILL#017`(`rw`)|`MPR_ECPM:19` `§源内配平与边界核对`|`rehosted`|`c=1`(`法定报表常在同一行同时给出分项与行合计，整…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
 |反向也会发生——看不懂来源的数被当作解…|`MPR_SKILL#018`(`rw`)|`MPR_ECPM:19` `§源内配平与边界核对`|`rehosted`|`c=1`(`反向也会发生——看不懂来源的数被当作解析噪…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
@@ -67,19 +67,19 @@ Aliases: `MPR_SKILL`=`skills/multi-perspective-research/SKILL.md`, `MPR_PDA`=`..
 |期间长度不同时按测量语义选同期值、单位…|`MPR_SKILL#061`(`rw`)|`MPR_PDC:78` `§陷阱二：跨期不可比被当成"数据坏了"`|`subsumed`|`c=1`(`期间长度不同时按测量语义选同期值、单位暴露…`),`q:v`;dedup onto existing carrier|
 |**口径修复要落成后续步骤会复用的东西…|`MPR_SKILL#062`(`rw`)|`MPR_ECPM:33` `§跨期可比性向量与编码迁移`|`rehosted`|`c=1`(`**口径修复要落成后续步骤会复用的东西，而…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
 |只写脚注时同一次调研的后半段会再犯一次。|`MPR_SKILL#063`(`rw`)|`MPR_ECPM:33` `§跨期可比性向量与编码迁移`|`rehosted`|`c=1`(`只写脚注时同一次调研的后半段会再犯一次。`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
-|** 聚合型数据集会把名称相近的组织或…|`MPR_SKILL#064`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`rehosted`|`c=1`(`聚合型数据集会把名称相近的组织或同名个人合…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
+|** 聚合型数据集会把名称相近的组织或…|`MPR_SKILL#064`(`rw`)|`MPR_PDC:84` `§陷阱三：信任数据集自带的实体消歧`|`subsumed`|`c=1`(`聚合型数据集会把名称相近的组织或同名个人合…`),`q:v`;dedup onto existing MPR_PDC §二 carrier|
 |用 ID 过滤前先抽样核对原始字段（记…|`MPR_SKILL#065`(`rw`)|`MPR_SKILL:42` `§硬规则（证据落地纪律）`|`merged`|`c=1`(`用 ID 过滤前先抽样核对原始字段（记抽样…`),`q:v`;host:MPR_SKILL;v|
-|可行时改用原始文本字段过滤，并**同时…|`MPR_SKILL#066`(`rw`)|`MPR_SKILL:42` `§硬规则（证据落地纪律）`|`merged`|`c=1`(`可行时改用原始文本字段过滤，并**同时核精…`),`q:v`;tightened inline; trap detail in MPR_ECPM|
-|挑几条明显正确的记录能得到 100% …|`MPR_SKILL#067`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`rehosted`|`c=1`(`挑几条明显正确的记录能得到 100% 精确…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
-|merge（不同对象被并成一个）与 s…|`MPR_SKILL#068`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`rehosted`|`c=1`(`merge（不同对象被并成一个）与 spl…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
-|**召回率必须有完备性依据的分母**—…|`MPR_SKILL#069`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`rehosted`|`c=1`(`**召回率必须有完备性依据的分母**——有…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
-|只在该 ID 已返回的记录里抽样只能估…|`MPR_SKILL#070`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`rehosted`|`c=1`(`只在该 ID 已返回的记录里抽样只能估精确…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
-|**两条"互不依赖"检索路径取并集给出…|`MPR_SKILL#071`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`rehosted`|`c=1`(`**两条"互不依赖"检索路径取并集给出的是…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
-|两条入口可能共享同一上游索引，或共享语…|`MPR_SKILL#072`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`rehosted`|`c=1`(`两条入口可能共享同一上游索引，或共享语言、…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
-|用 capture–recapture…|`MPR_SKILL#073`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`rehosted`|`c=1`(`用 capture–recapture 之…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
-|没有合格分母时记"召回未知"——此时*…|`MPR_SKILL#074`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`rehosted`|`c=1`(`没有合格分母时记"召回未知"——此时**不…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
-|消歧不可靠时，**不得用该数据估算原目…|`MPR_SKILL#075`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`rehosted`|`c=1`(`消歧不可靠时，**不得用该数据估算原目标总…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
-|人工逐条确认过的子集仍可支持**重新定…|`MPR_SKILL#076`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`rehosted`|`c=1`(`人工逐条确认过的子集仍可支持**重新定义并…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
+|可行时改用原始文本字段过滤，并**同时…|`MPR_SKILL#066`(`rw`)|`MPR_SKILL:42` `§硬规则（证据落地纪律）`|`merged`|`c=1`(`可行时改用原始文本字段过滤，并**同时核精…`),`q:v`;tightened inline; trap detail in MPR_PDC §二|
+|挑几条明显正确的记录能得到 100% …|`MPR_SKILL#067`(`rw`)|`MPR_PDC:90` `§陷阱三：信任数据集自带的实体消歧`|`subsumed`|`c=1`(`**只报精确率是最常见的假安全**：挑几条…`),`q:v`;dedup onto existing MPR_PDC §二 carrier|
+|merge（不同对象被并成一个）与 s…|`MPR_SKILL#068`(`rw`)|`MPR_PDC:89` `§陷阱三：信任数据集自带的实体消歧`|`subsumed`|`c=1`(`两个方向都查：**merge**（不同对象…`),`q:v`;dedup onto existing MPR_PDC §二 carrier|
+|**召回率必须有完备性依据的分母**—…|`MPR_SKILL#069`(`rw`)|`MPR_PDC:91` `§陷阱三：信任数据集自带的实体消歧`|`subsumed`|`c=1`(`拿不出有完备性依据的候选全集或 gold …`),`q:v`;dedup onto existing MPR_PDC §二 carrier|
+|只在该 ID 已返回的记录里抽样只能估…|`MPR_SKILL#070`(`rw`)|`MPR_PDC:91` `§陷阱三：信任数据集自带的实体消歧`|`subsumed`|`c=1`(`**召回率的分母不好来**：只在该 ID …`),`q:v`;dedup onto existing MPR_PDC §二 carrier|
+|**两条"互不依赖"检索路径取并集给出…|`MPR_SKILL#071`(`rw`)|`MPR_PDC:91` `§陷阱三：信任数据集自带的实体消歧`|`subsumed`|`c=1`(`两条"互不依赖"路径取并集只能给出**观测…`),`q:v`;dedup onto existing MPR_PDC §二 carrier|
+|两条入口可能共享同一上游索引，或共享语…|`MPR_SKILL#072`(`rw`)|`MPR_PDC:91` `§陷阱三：信任数据集自带的实体消歧`|`subsumed`|`c=1`(`而且两条入口还可能共享同一上游索引或同样的…`),`q:v`;dedup onto existing MPR_PDC §二 carrier|
+|用 capture–recapture…|`MPR_SKILL#073`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`rehosted`|`c=1`(`交集 `\|A∩B\|` 更不是覆盖率，用 c…`),`q:`必须`=8`;rehosted in MPR_ECPM §二|
+|没有合格分母时记"召回未知"——此时*…|`MPR_SKILL#074`(`rw`)|`MPR_PDC:91` `§陷阱三：信任数据集自带的实体消歧`|`subsumed`|`c=1`(`拿不出有完备性依据的候选全集或 gold …`),`q:`不存在`=2`;dedup onto existing MPR_PDC §二 carrier|
+|消歧不可靠时，**不得用该数据估算原目…|`MPR_SKILL#075`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`rehosted`|`c=1`(`(2) 消歧不可靠时"严格子集"救不回来，…`),`q:v`;selection-bias guard in MPR_ECPM §二 + ratio ban in MPR_PDC:93|
+|人工逐条确认过的子集仍可支持**重新定…|`MPR_SKILL#076`(`rw`)|`MPR_PDC:93` `§陷阱三：信任数据集自带的实体消歧`|`subsumed`|`c=1`(`消歧不可靠时不得用该数据估算原总体的比率；…`),`q:`不得`=4`;dedup onto existing MPR_PDC §二 carrier|
 |** 具体组织只是其中一个场景，可借 …|`MPR_SKILL#077`(`rw`)|`MPR_ECPM:74` `§三、基线顺序：把成本花在对的地方`|`rehosted`|`c=1`(`具体组织只是其中一个场景，可借 `refe…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
 |主题、政策、技术、市场等调研必须按自己…|`MPR_SKILL#078`(`rw`)|`MPR_ECPM:74` `§三、基线顺序：把成本花在对的地方`|`rehosted`|`c=1`(`主题、政策、技术、市场等调研必须按自己的主…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
 |这个顺序是**默认序不是强制序**；|`MPR_SKILL#079`(`rw`)|`MPR_ECPM:74` `§三、基线顺序：把成本花在对的地方`|`rehosted`|`c=1`(`这个顺序是**默认序不是强制序**；`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
@@ -92,8 +92,8 @@ Aliases: `MPR_SKILL`=`skills/multi-perspective-research/SKILL.md`, `MPR_PDA`=`..
 |解析脚手架搭一次（流式读 + 按列名取…|`MPR_SKILL#086`(`rw`)|`MPR_ECPM:74` `§三、基线顺序：把成本花在对的地方`|`rehosted`|`c=1`(`解析脚手架搭一次（流式读 + 按列名取 +…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
 |交付物骨架（数据源表、证据表、导航）从…|`MPR_SKILL#087`(`rw`)|`MPR_ECPM:74` `§三、基线顺序：把成本花在对的地方`|`rehosted`|`c=1`(`交付物骨架（数据源表、证据表、导航）从登记…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
 |详见 `references/publ…|`MPR_SKILL#088`(`rw`)|`MPR_ECPM:74` `§三、基线顺序：把成本花在对的地方`|`rehosted`|`c=1`(`详见 `references/public…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
-|本次四次踩到同一类：|`MPR_SKILL#089`(`rw`)|`MPR_ECPM:58` `§检查器自己会骗你`|`subsumed`|`c=1`(`常见假通过/假失败形态都表现为"检查器说通…`),`q:v`;one-off count generalized into MPR_ECPM §二 table|
-|子 shell 丢环境导致满屏假失败、…|`MPR_SKILL#090`(`rw`)|`MPR_ECPM:62` `§检查器自己会骗你`|`subsumed`|`c=1`(`坏掉的检查器与真失败在输出上一样——**先…`),`q:v`;4 failure shapes covered by MPR_ECPM §二 table|
+|本次四次踩到同一类：|`MPR_SKILL#089`(`rw`)|`MPR_ECPM:58` `§检查器自己会骗你`|`subsumed`|`c=1`(`常见假通过/假失败形态都表现为"检查器说通…`),`q:v`;one-off count generalized into MPR_ECPM:58-65 table|
+|子 shell 丢环境导致满屏假失败、…|`MPR_SKILL#090`(`rw`)|`MPR_ECPM:62` `§检查器自己会骗你`|`subsumed`|`c=1`(`坏掉的检查器与真失败在输出上一样——**先…`),`q:v`;4 failure shapes in MPR_ECPM:62-65 table|
 |**在声明的检索边界内未命中**（记登…|`MPR_SKILL#091`(`rw`)|`MPR_ECPM:105` `§四、把无产出也记下来`|`rehosted`|`c=1`(`**在声明的检索边界内未命中**（记登记机…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
 |这四种都不构成闭合判断，按本章覆盖矩阵…|`MPR_SKILL#092`(`rw`)|`MPR_ECPM:105` `§四、把无产出也记下来`|`rehosted`|`c=1`(`这四种都不构成闭合判断，按 `SKILL.…`),`q:v`;moved with pointer|
 |只写"无产出"会把后三种伪装成第一种。|`MPR_SKILL#093`(`rw`)|`MPR_PDC:97` `§三、走过而无产出的渠道要留下原因`|`subsumed`|`c=1`(`只写"无产出"会把后三种伪装成第一种。`),`q:v`;dedup onto existing carrier|
@@ -114,7 +114,7 @@ Aliases: `MPR_SKILL`=`skills/multi-perspective-research/SKILL.md`, `MPR_PDA`=`..
 |(2) 本轮 estimand 与口径…|`MPR_SKILL#108`(`rw`)|`MPR_ECPM:116` `§Program 质量基础设施前置与轮起点对账`|`rehosted`|`c=1`(`(2) 本轮 estimand 与口径是否…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
 |变更须版本化（新旧口径并记），列出受影…|`MPR_SKILL#109`(`rw`)|`MPR_ECPM:116` `§Program 质量基础设施前置与轮起点对账`|`rehosted`|`c=1`(`变更须版本化（新旧口径并记），列出受影响的…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
 |covered-through 按口径…|`MPR_SKILL#110`(`rw`)|`MPR_ECPM:116` `§Program 质量基础设施前置与轮起点对账`|`rehosted`|`c=1`(`covered-through 按口径分支…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
-|不同口径的数字不得混入同一结论，加脚注…|`MPR_SKILL#111`(`rw`)|`MPR_ECPM:116` `§Program 质量基础设施前置与轮起点对账`|`rehosted`|`c=1`(`不同口径的数字不得混入同一结论，加脚注不算…`),`q:`不得`=14`;moved to reference|
+|不同口径的数字不得混入同一结论，加脚注…|`MPR_SKILL#111`(`rw`)|`MPR_ECPM:116` `§Program 质量基础设施前置与轮起点对账`|`rehosted`|`c=1`(`不同口径的数字不得混入同一结论，加脚注不算…`),`q:`不得`=13`;moved to reference|
 |多轮 program 中，上轮证据表的…|`MPR_SKILL#112`(`rw`)|`MPR_SKILL:53` `§多轮 program 模式`|`merged`|`c=1`(`继承行用独立状态 **`grounded@…`),`q:`只管`=1`;tightened inline|
 |**继承的是原主张原文与其口径**——…|`MPR_SKILL#113`(`rw`)|`MPR_ECPM:117` `§Program 质量基础设施前置与轮起点对账`|`rehosted`|`c=1`(`**继承的是原主张原文与其口径**——任何…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
 |但**历史 grounded ≠ 当前…|`MPR_SKILL#114`(`rw`)|`MPR_ECPM:117` `§Program 质量基础设施前置与轮起点对账`|`rehosted`|`c=1`(`但**历史 grounded ≠ 当前仍 …`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
@@ -154,8 +154,8 @@ Aliases: `MPR_SKILL`=`skills/multi-perspective-research/SKILL.md`, `MPR_PDA`=`..
 |**不得**只在旁边补一句"这是解读不…|`MPR_SKILL#148`(`rw`)|`MPR_ECPM:124` `§Closeout 过程自省与呈现结构细则`|`rehosted`|`c=1`(`**不得**只在旁边补一句"这是解读不是验…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
 |**把免责声明删掉，剩下的还在主张什么…|`MPR_SKILL#149`(`rw`)|`MPR_ECPM:124` `§Closeout 过程自省与呈现结构细则`|`rehosted`|`c=1`(`**把免责声明删掉，剩下的还在主张什么**…`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
 |免责声明只对"结构正确但证据不足"有效。|`MPR_SKILL#150`(`rw`)|`MPR_ECPM:124` `§Closeout 过程自省与呈现结构细则`|`rehosted`|`c=1`(`免责声明只对"结构正确但证据不足"有效。`),`q:v`;-MPR_SKILL->+MPR_ECPM(v)|
-|`$OUT` 要**先 `mkdir …|`MPR_PDA#001`(`rw`)|`MPR_PDA:149` `§FETCHED=1/0 区分"本轮真的下了"与"跳过"——要计数就读它，别拿返回码当计数器`|`merged`|`c=1`(``$OUT`（及子目录）要**先 `mkd…`),`q:v`;extended to subdirs|
-|`fetch` 不建目录，父目录不存在…|`MPR_PDA#002`(`rw`)|`MPR_PDA:149` `§FETCHED=1/0 区分"本轮真的下了"与"跳过"——要计数就读它，别拿返回码当计数器`|`merged`|`c=1`(``fetch` 不建目录，父目录不存在、含…`),`q:v`;tightened parent containment|
+|`$OUT` 要**先 `mkdir …|`MPR_PDA#001`(`rw`)|`MPR_PDA:153` `§FETCHED=1/0 区分"本轮真的下了"与"跳过"——要计数就读它，别拿返回码当计数器`|`merged`|`c=1`(``$OUT`（及子目录）要**先 `mkd…`),`q:v`;extended to subdirs|
+|`fetch` 不建目录，父目录不存在…|`MPR_PDA#002`(`rw`)|`MPR_PDA:153` `§FETCHED=1/0 区分"本轮真的下了"与"跳过"——要计数就读它，别拿返回码当计数器`|`merged`|`c=1`(``fetch` 不建目录，父目录不存在、含…`),`q:v`;tightened parent containment|
 |第一轮讲的是"别信数据集自带的实体消歧"。|`MPR_PDA#003`(`rw`)|`MPR_ECPM:41` `§你自己写的名字匹配`|`rehosted`|`c=1`(`第一轮讲的是"别信数据集自带的实体消歧"。`),`q:v`;-MPR_PDA->+MPR_ECPM(v)|
 |**你自己写的那个筛选条件**。|`MPR_PDA#004`(`rw`)|`MPR_ECPM:41` `§你自己写的名字匹配`|`rehosted`|`c=1`(`**你自己写的那个筛选条件**。`),`q:v`;-MPR_PDA->+MPR_ECPM(v)|
 |**锚定，别子串**：|`MPR_PDA#005`(`rw`)|`MPR_ECPM:43` `§你自己写的名字匹配`|`rehosted`|`c=1`(`**锚定，别子串**：`),`q:v`;-MPR_PDA->+MPR_ECPM(v)|
@@ -219,10 +219,10 @@ Aliases: `MPR_SKILL`=`skills/multi-perspective-research/SKILL.md`, `MPR_PDA`=`..
 |同一批对象常能从多个维度分别枚举（按类…|`MPR_PDA#063`(`rw`)|`MPR_ECPM:96` `§三、基线顺序：把成本花在对的地方`|`rehosted`|`c=1`(`同一批对象常能从多个维度分别枚举（按类别、…`),`q:v`;-MPR_PDA->+MPR_ECPM(v)|
 |**分别枚举再取并集**，比只走一个维…|`MPR_PDA#064`(`rw`)|`MPR_ECPM:96` `§三、基线顺序：把成本花在对的地方`|`rehosted`|`c=1`(`**分别枚举再取并集**，比只走一个维度更…`),`q:v`;-MPR_PDA->+MPR_ECPM(v)|
 |并集要按稳定标识去重（不是按内容，见 …|`MPR_PDA#065`(`rw`)|`MPR_ECPM:96` `§三、基线顺序：把成本花在对的地方`|`rehosted`|`c=1`(`并集要按稳定标识去重（不是按内容，见上「你…`),`q:v`;moved to reference|
-|**`\|A∪B\|` 是"观测到的唯一对…|`MPR_PDA#066`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`subsumed`|`c=1`(`**两条"互不依赖"检索路径取并集给出的是…`),`q:`不是`=45`;dedup onto MPR_ECPM §二|
-|它是**真实总体规模的下界**、也是检…|`MPR_PDA#067`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`subsumed`|`c=1`(`它是总体规模的下界与检索产出量度，不是真实…`),`q:`不是`=45`;dedup onto MPR_ECPM §二|
-|所以没有独立的候选全集或 gold s…|`MPR_PDA#068`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`subsumed`|`c=1`(`没有合格分母时记"召回未知"——此时**不…`),`q:`禁止`=3`;dedup onto MPR_ECPM §二|
-|交集 `\|A∩B\|` 更不是覆盖率，它…|`MPR_PDA#069`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`rehosted`|`c=1`(`交集 `\|A∩B\|` 更不是覆盖率，用 c…`),`q:`不是`=45,`必须`=10`;consolidated into MPR_ECPM §二|
+|**`\|A∪B\|` 是"观测到的唯一对…|`MPR_PDA#066`(`rw`)|`MPR_PDC:91` `§陷阱三：信任数据集自带的实体消歧`|`subsumed`|`c=1`(`两条"互不依赖"路径取并集只能给出**观测…`),`q:v`;dedup onto existing MPR_PDC §二 carrier|
+|它是**真实总体规模的下界**、也是检…|`MPR_PDA#067`(`rw`)|`MPR_PDC:91` `§陷阱三：信任数据集自带的实体消歧`|`subsumed`|`c=1`(`它是总体规模下界而不是召回率下界——召回是…`),`q:v`;dedup onto existing MPR_PDC §二 carrier|
+|所以没有独立的候选全集或 gold s…|`MPR_PDA#068`(`rw`)|`MPR_PDC:91` `§陷阱三：信任数据集自带的实体消歧`|`subsumed`|`c=1`(`拿不出有完备性依据的候选全集或 gold …`),`q:`不存在`=2`;dedup onto existing MPR_PDC §二 carrier|
+|交集 `\|A∩B\|` 更不是覆盖率，它…|`MPR_PDA#069`(`rw`)|`MPR_ECPM:37` `§第三方数据集实体消歧与召回分母`|`rehosted`|`c=1`(`交集 `\|A∩B\|` 更不是覆盖率，用 c…`),`q:`不是`=42,`必须`=8`;consolidated into MPR_ECPM §二|
 |**解析脚手架搭一次**（`fetch…|`MPR_PDA#070`(`rw`)|`MPR_ECPM:100` `§三、基线顺序：把成本花在对的地方`|`rehosted`|`c=1`(`**解析脚手架搭一次**（`fetch` …`),`q:v`;-MPR_PDA->+MPR_ECPM(v)|
 |**交付物的骨架从登记表派生**（数据…|`MPR_PDA#071`(`rw`)|`MPR_ECPM:101` `§三、基线顺序：把成本花在对的地方`|`rehosted`|`c=1`(`**交付物的骨架从登记表派生**（数据源表…`),`q:v`;-MPR_PDA->+MPR_ECPM(v)|
 |每个走过的渠道留一行：|`MPR_PDA#072`(`rw`)|`MPR_ECPM:107` `§四、把无产出也记下来`|`rehosted`|`c=1`(`每个走过的渠道留一行：`),`q:v`;-MPR_PDA->+MPR_ECPM(v)|

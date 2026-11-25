@@ -735,6 +735,12 @@ assert_same_bullet "$EXTRACTION_SKILL" 'Record the provenance-to-target diff for
 assert_same_line "$DESIGN_LEDGER_REF" 'Load this reference for any source-derived rule extraction' \
   '`## Extraction Ledger` during analysis and `## Decision Persistence` before closeout' \
   "ledger split (scope: design-and-ledger-extraction.md applies to any source-derived rule extraction)"
+assert_in_section "$DESIGN_LEDGER_REF" "## Extraction Ledger" \
+  '| Origin | Source IDs read before drafting | Evidence | Candidate rule | Conflict | Decision | Target | Reason |' \
+  "ledger split (substance: Extraction Ledger preserves canonical 8-column schema)"
+assert_in_section "$DESIGN_LEDGER_REF" "## Decision Persistence" \
+  'retain rule origin, source IDs read before drafting, and concrete observations' \
+  "ledger split (substance: Decision Persistence retains rule origin, pre-draft source IDs, and observations)"
 
 # --- Family 9: review-program process controls (multi-round program discipline) ---
 # One assertion per obligation sentence, SECTION-BOUND to the owning rule (review

@@ -231,7 +231,7 @@ def _parse_junit_checked(results_file: str,
         print(f"  ⚠ Invalid JUnit XML {results_file}: {exc} — skipping", file=sys.stderr)
         return {"linked": {}, "untracked": []}, str(exc)
     root = tree.getroot()
-    if any("{" in el.tag for el in root.iter()):
+    if any("{" in el.tag or any("{" in k for k in el.attrib) for el in root.iter()):
         print(f"  ⚠ Namespaced XML unsupported in {results_file} — skipping", file=sys.stderr)
         return {"linked": {}, "untracked": []}, "namespaced XML unsupported"
     if root.tag not in ("testsuite", "testsuites"):

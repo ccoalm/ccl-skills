@@ -36,8 +36,12 @@ from dataclasses import dataclass
 
 # A heading line: capture level and text.
 _HEADING = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
-# A list item: capture leading indent and body text.
-_LIST_ITEM = re.compile(r"^(\s*)(?:[-*+]|\d+[.)])\s+(.*\S)\s*$")
+# CommonMark §4.1 thematic break (`---`, `***`, `___` with 0..3 leading spaces).
+_THEMATIC_BREAK = re.compile(
+    r"^[ \t]{0,3}(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})\r?$"
+)
+# A list item: capture leading indent and optional first-line body text.
+_LIST_ITEM = re.compile(r"^([ \t]*)(?:[-*+]|\d+[.)])(?:[ \t]+(.*\S))?[ \t]*\r?$")
 # A markdown table row (leading pipe); these are data rows, not prose obligations.
 _TABLE_ROW = re.compile(r"^\s*\|")
 # CommonMark §4.5 fenced code block opener (0..3 cols relative to container; 3+ ` or ~).
@@ -46,6 +50,8 @@ _FENCE_OPEN = re.compile(r"^([ \t]*)(`{3,}|~{3,})([^\r\n]*)$")
 def _git_clean_env() -> dict[str, str]:
     clean = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     clean["GIT_NO_LAZY_FETCH"] = "1"
+    clean["GIT_CONFIG_GLOBAL"] = os.devnull
+    clean["GIT_CONFIG_SYSTEM"] = os.devnull
     return clean
 
 
@@ -238,15 +244,50 @@ def parse(source: str, *, min_chars: int = 25) -> list[Obligation]:
             list_stack.clear()
             continue
 
+        if _THEMATIC_BREAK.match(raw):
+            flush_item()
+            flush_paragraph()
+            list_stack.clear()
+            continue
+
         item = _LIST_ITEM.match(raw)
         if item:
             flush_item()
             flush_paragraph()
             indent = len(item.group(1).expandtabs(4))
-            content_indent = len(raw[: item.start(2)].expandtabs(4))
+            body = item.group(2)
+            marker_prefix = (
+                raw.rstrip(" \t\r")
+                if body is None
+                else raw[: item.start(2)].rstrip(" \t")
+            )
+            marker_base = len(marker_prefix.expandtabs(4)) + 1
             while list_stack and list_stack[-1][0] >= indent:
                 list_stack.pop()
-            pending_item = [item.group(2)]
+            if body is None:
+                list_stack.append((indent, marker_base, ""))
+                continue
+            first_content_col = len(raw[: item.start(2)].expandtabs(4))
+            if first_content_col - marker_base > 3:
+                # CommonMark §5.2 Rule 2: >4 spaces after list marker = indented code on
+                # the first line with content column fixed at marker_width + 1.
+                list_stack.append((indent, marker_base, ""))
+                continue
+            content_indent = first_content_col
+            inline_fence = _FENCE_OPEN.match(body)
+            if inline_fence and not (
+                inline_fence.group(2)[0] == "`" and "`" in inline_fence.group(3)
+            ):
+                list_stack.append((indent, content_indent, ""))
+                ch = inline_fence.group(2)[0]
+                min_len = len(inline_fence.group(2))
+                fence_container_indent = content_indent
+                fence_max_indent = content_indent + 3
+                fence_closer = re.compile(
+                    rf"^([ \t]*){re.escape(ch)}{{{min_len},}}[ \t]*\r?$"
+                )
+                continue
+            pending_item = [body]
             pending_indent = indent
             pending_content_indent = content_indent
             continue

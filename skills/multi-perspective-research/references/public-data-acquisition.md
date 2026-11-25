@@ -76,32 +76,35 @@ accept() {
 #      2 = 目标路径不对；3 = 与并发调用撞了，目标已被别人发布
 # FETCHED=1/0 区分"本轮真的下了"与"跳过"——要计数就读它，别拿返回码当计数器
 fetch() {
-  local out=$1 url=$2 out_dir leaf real_out cur rel seg; shift 2
+  local out=$1 url=$2 eff_out=${OUT:-.} eff_clean out_dir dir_clean leaf real_out cur rel seg; shift 2
   FETCHED=0
   case "$out" in ''|*/|.|..|*/.|*/..|*$'\n'*) echo "目标路径非法: $out" >&2; return 2 ;; esac
-  case "${OUT:-.}" in *$'\n'*) echo "成品目录路径非法: ${OUT:-.}" >&2; return 2 ;; esac
-  real_out=$(cd -P -- "${OUT:-.}" 2>/dev/null && pwd -P && printf x) \
-    || { echo "成品目录不可解析: ${OUT:-.}" >&2; return 2; }
+  case "$eff_out" in *$'\n'*) echo "成品目录路径非法: $eff_out" >&2; return 2 ;; esac
+  real_out=$(CDPATH='' cd -P -- "$eff_out" >/dev/null 2>&1 && pwd -P && printf x) \
+    || { echo "成品目录不可解析: $eff_out" >&2; return 2; }
   real_out=${real_out%$'\nx'}
+  eff_clean=${eff_out%/}; [ -n "$eff_clean" ] || eff_clean=/
+  while [ "${eff_clean#./}" != "$eff_clean" ]; do eff_clean=${eff_clean#./}; done
   case "$out" in */*) out_dir=${out%/*}; leaf=${out##*/}; [ -n "$out_dir" ] || out_dir=/ ;; *) out_dir=.; leaf=$out ;; esac
-  if [ "$out_dir" = "${OUT:-.}" ] || [ "$out_dir" = "${OUT%/}" ] || [ "$out_dir" = "$real_out" ]; then
+  dir_clean=$out_dir; while [ "${dir_clean#./}" != "$dir_clean" ]; do dir_clean=${dir_clean#./}; done
+  if [ "$dir_clean" = "$eff_clean" ] || [ "$out_dir" = "$real_out" ]; then
     cur=$real_out; rel=""
-  elif [ "${OUT:-.}" != "/" ] && [ "${out_dir#"${OUT%/}/"}" != "$out_dir" ]; then
-    cur=$real_out; rel=${out_dir#"${OUT%/}/"}
+  elif [ "$eff_clean" != "." ] && [ "$eff_clean" != "/" ] && [ "${dir_clean#"$eff_clean/"}" != "$dir_clean" ]; then
+    cur=$real_out; rel=${dir_clean#"$eff_clean/"}
   elif [ "$real_out" != "/" ] && [ "${out_dir#"$real_out/"}" != "$out_dir" ]; then
     cur=$real_out; rel=${out_dir#"$real_out/"}
   elif [ "$real_out" = "/" ] && [ "${out_dir#/}" != "$out_dir" ]; then
     cur=/; rel=${out_dir#/}
-  elif [ "${out_dir#/}" = "$out_dir" ]; then
+  elif [ "${dir_clean#/}" = "$dir_clean" ]; then
     cur=$(pwd -P && printf x) || return 2; cur=${cur%$'\nx'}
-    case "$cur/" in "$real_out/"*) rel=$out_dir ;; *) echo "当前目录越出受控成品目录 ($OUT): $out" >&2; return 2 ;; esac
+    case "$cur/" in "$real_out/"*) rel=$dir_clean ;; *) echo "当前目录越出受控成品目录 ($eff_out): $out" >&2; return 2 ;; esac
   else
-    echo "目标父目录越出受控成品目录 ($OUT): $out" >&2; return 2
+    echo "目标父目录越出受控成品目录 ($eff_out): $out" >&2; return 2
   fi
   while [ -n "$rel" ]; do
     case "$rel" in */*) seg=${rel%%/*}; rel=${rel#*/} ;; *) seg=$rel; rel="" ;; esac
     case "$seg" in ''|.) continue ;; ..)
-      case "$cur/" in "$real_out/"?*) cur=${cur%/*}; [ -n "$cur" ] || cur=/ ;; *) echo "目标父目录越出受控成品目录 ($OUT): $out" >&2; return 2 ;; esac ;;
+      case "$cur/" in "$real_out/"?*) cur=${cur%/*}; [ -n "$cur" ] || cur=/ ;; *) echo "目标父目录越出受控成品目录 ($eff_out): $out" >&2; return 2 ;; esac ;;
     *)
       [ ! -L "$cur/$seg" ] && [ -d "$cur/$seg" ] || { echo "目标父目录不存在或是符号链接: $out" >&2; return 2; }
       cur="$cur/$seg" ;;
@@ -122,9 +125,10 @@ fetch() {
        --max-filesize "$MAX_BYTES" --max-time 900 -H "User-Agent: $UA" \
        -o "$part" "$url" "$@" || { rm -f -- "$part"; return 1; }
   accept "$part" || { rm -f -- "$part"; return 1; }   # 没验收就当这次没取到
-  # 发布用 ln 不用 mv -f：目标已存在时 ln 失败，防止并发调用静默覆盖
-  if ln -- "$part" "$out" 2>/dev/null; then rm -f -- "$part"; FETCHED=1; return 0; fi
+  # 发布用 ln 不用 mv -f：目标已存在（含并发新建目录/符号链接）时不覆盖也不链入目录
+  if [ ! -e "$out" ] && [ ! -L "$out" ] && ln -- "$part" "$out" 2>/dev/null; then rm -f -- "$part"; FETCHED=1; return 0; fi
   rm -f -- "$part"
+  if [ -L "$out" ] || [ -d "$out" ]; then echo "目标路径冲突（目录或符号链接）: $out" >&2; return 2; fi
   [ -f "$out" ] && { echo "并发冲突：$out 已被另一个调用发布，本次丢弃" >&2; return 3; }
   echo "发布失败（目录需支持同目录硬链接；若已支持，再查权限与配额）：$out" >&2; return 1
 }

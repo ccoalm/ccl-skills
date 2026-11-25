@@ -96,10 +96,15 @@ def _is_within(child_real, root_real):
     return rel == "." or (rel != ".." and not rel.startswith(".." + os.sep))
 
 
+def _split_fs_path(p):
+    seps = re.escape(os.sep + (os.altsep or ""))
+    return [s for s in re.split(f"[{seps}]+", p) if s]
+
+
 def _lexical_anchor_dir(arg):
     cur = os.getcwd() if not os.path.isabs(arg) else os.sep
-    for part in re.split(r"[\\/]+", arg):
-        if not part or part == ".":
+    for part in _split_fs_path(arg):
+        if part == ".":
             continue
         if part == "..":
             if os.path.islink(cur):
@@ -113,37 +118,36 @@ def _lexical_anchor_dir(arg):
     return os.path.realpath(cur)
 
 
-def _scope_root_for_arg(arg, cwd_real):
+def _scope_roots_for_arg(arg, cwd_real):
     anchor_dir = _lexical_anchor_dir(arg)
     proj = _find_project_root(anchor_dir)
     if proj is not None:
-        return proj
+        return proj, proj
     if _is_within(anchor_dir, cwd_real):
-        return cwd_real
-    if not _is_within(os.path.realpath(arg), anchor_dir):
-        return anchor_dir
-    return os.path.abspath(os.sep)
+        return anchor_dir, cwd_real
+    return anchor_dir, os.path.abspath(os.sep)
 
 
-def _rel_segments(path, root_real):
+def _rel_segments(path, roots):
+    containment_root, segment_root = roots
     real_file = os.path.realpath(path)
-    if not _is_within(real_file, root_real):
+    if not _is_within(real_file, containment_root):
         return None
-    rel = os.path.relpath(real_file, root_real)
-    return [s for s in re.split(r"[\\/]+", rel) if s and s != "."]
+    rel = os.path.relpath(real_file, segment_root)
+    return [s for s in _split_fs_path(rel) if s != "."]
 
 
 def _allow_segments(raw):
     return [s for s in re.split(r"[\\/]+", raw) if s and s != "."]
 
 
-def _allowed(path, allow, root_real):
+def _allowed(path, allow, roots):
     # Segment-anchored against the resolved path relative to the canonical project/scan root:
     # `--allow=render` matches `render/` inside the root, NOT an ancestor directory above the
     # checkout, NOT `surrender.ts`, NOT `render/../src/colors.go`, and NOT targets resolving
-    # outside `root_real`. Allowlist entries keep raw `..` un-collapsed so `--allow=..` and
-    # `--allow=render/../src` never match normalized relative segments.
-    segs = _rel_segments(path, root_real)
+    # outside `containment_root`. Allowlist entries keep raw `..` un-collapsed so `--allow=..`
+    # and `--allow=render/../src` never match normalized relative segments.
+    segs = _rel_segments(path, roots)
     if not segs:
         return False
     for a in allow:
@@ -181,7 +185,7 @@ def main(argv):
         if not os.path.exists(p):
             print(f"client-ansi: path not found: {p} — inconclusive", file=sys.stderr)
             return 2
-        root_real = _scope_root_for_arg(p, cwd_real)
+        roots = _scope_roots_for_arg(p, cwd_real)
         if os.path.isdir(p):
             walk_errs = []
             sub = list(_iter_src([p], onerror=walk_errs.append))
@@ -191,12 +195,12 @@ def main(argv):
             if not sub:
                 print(f"client-ansi: no source files under directory: {p} — inconclusive", file=sys.stderr)
                 return 2
-            scoped_files.extend((f, root_real) for f in sub)
+            scoped_files.extend((f, roots) for f in sub)
         elif os.path.isfile(p):
             if os.path.splitext(p)[1] not in SOURCE_EXT:
                 print(f"client-ansi: unsupported file type: {p} — inconclusive", file=sys.stderr)
                 return 2
-            scoped_files.append((p, root_real))
+            scoped_files.append((p, roots))
         else:
             print(f"client-ansi: unsupported file type: {p} — inconclusive", file=sys.stderr)
             return 2
@@ -204,8 +208,8 @@ def main(argv):
         print("client-ansi: no source files in scope — inconclusive", file=sys.stderr)
         return 2
     hits = 0
-    for f, root_real in scoped_files:
-        if _allowed(f, allow, root_real):
+    for f, roots in scoped_files:
+        if _allowed(f, allow, roots):
             continue
         res, err = _check_file(f)
         if err is not None:

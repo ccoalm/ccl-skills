@@ -19,7 +19,7 @@ Aliases: `MPR_SKILL`=`skills/multi-perspective-research/SKILL.md`, `MPR_PDA`=`..
 |visual direction/to…|`SEW_SKILL#013`(`rw`)|`SEW_UIUX:166` `§Completion Gate`|`rehosted`|`c=1`(`and visual direction/…`),`q:v`;moved to SEW_UIUX Completion Gate|
 |If the matrix is ab…|`SEW_SKILL#014`(`rw`)|`SEW_SKILL:273` `§Extraction Workflow`|`merged`|`c=1`(`(if absent or lacking…`),`q:`only`=125,`not`=254`;tightened inline + detail in SEW_UIUX|
 |UI/UX validation mu…|`SEW_SKILL#015`(`rw`)|`SEW_UIUX:144` `§Minimum Pressure Set`|`subsumed`|`c=1`(`For UI/UX extraction …`),`q:v`;dedup onto SEW_UIUX §Minimum Pressure Set|
-|long content, empty…|`SEW_SKILL#016`(`rw`)|`SEW_UIUX:144` `§Minimum Pressure Set`|`subsumed`|`c=1`(`For UI/UX extraction …`),`q:v`;10 pressure-set bullets in SEW_UIUX §Minimum Pressure Set|
+|long content, empty…|`SEW_SKILL#016`(`rw`)|`SEW_UIUX:146` `§Minimum Pressure Set`|`subsumed`|`c=1`(`- Long content or den…`),`q:v`;10 pressure-set bullets in SEW_UIUX:146-155|
 |mark irrelevant cas…|`SEW_SKILL#017`(`rw`)|`SEW_UIUX:168` `§Completion Gate`|`rehosted`|`c=1`(`Minimum pressure set …`),`q:v`;moved to SEW_UIUX Completion Gate|
 |`references/source-…|`SEW_SKILL#018`(`rw`)|`SEW_SKILL:301` `§Reference Loading`|`merged`|`c=1`(`Extraction planning a…`),`q:`required`=26,`before`=89`;indexed 2 split refs|
 |Keep this file as t…|`SEW_SRC#001`(`rw`)|`SEW_SRC:17` `§Domain Method Index`|`merged`|`c=1`(`Keep this file as the…`),`q:`1–2`=1`;preserved 1–2 threshold inline|
