@@ -186,4 +186,27 @@ Legend: `CR_SKILL`=`skills/code-review/SKILL.md`, `CR_MAN`=`skills/code-review/r
 
 ## Dual-Track Review & Challenge Passes
 
-Controller receipts (`pass1-review.json`, `pass2-challenge.json`) and dispositions are committed under `evidence/` per `dual-track-review-gate.md` (`§The extraction review lane`); `AC-5` and `Batch 2a` remain `in-review` until PR CI passes and merges to `main`.
+Landing-target base authority verified live via `git ls-remote origin refs/heads/main` (`remote=origin`, `ref=refs/heads/main`, `sha=a151098e21ab29e7a827a58b834c503012ca2eee`, `git rev-list --count HEAD..a151098e21ab29e7a827a58b834c503012ca2eee == 0`). `AC-5` and `Batch 2a` remain `in-review` until PR CI checks pass and the PR merges to `main`.
+
+### Review pass
+- Reviewed commit: `4505ba16d7af668ed153de54e699a05893ec9ef4` (`specs/attention-budget-and-suite-speed/evidence/pass1-review.json`, client `claude`)
+- Findings: `1` total (`0 P0 / 0 P1 / 1 P2`)
+- R0 evidence: `alias_audit_ok` / `ccl_skill_check_clean_ok` (`r0_status=private-ok`, named profiles: `process-retro` + maintainer alias profiles)
+- Dispositions: `0` P0/P1 findings; `[P2] specs/ci-gate-npm-slimming/plan.md:14` (`14/14` vs `15/15` mutation count in Batch 2a roadmap row) — **fixed** in `0adaa45afb3a5332d10bff244a1c19cd3d0b04dd`.
+
+### Challenge pass
+- Reviewed commit: `4505ba16d7af668ed153de54e699a05893ec9ef4` (`specs/attention-budget-and-suite-speed/evidence/pass2-challenge.json`, client `claude`)
+- Findings: `1` total (`0 P0 / 0 P1 / 1 P2`)
+- R0 evidence: `alias_audit_ok` / `ccl_skill_check_clean_ok` (`r0_status=private-ok`, named profiles: `process-retro` + maintainer alias profiles)
+- Gate-fireability applicability: `yes — change edits shared-gate scripts and size/hygiene rules`; Item 9 exercised: `specs/attention-budget-and-suite-speed/evidence/pass2-challenge.json` (`challenge_focus` + `concern_results[0]` item-9 gate-fireability check)
+- Dispositions: `0` P0/P1 findings; `[P2] specs/ci-gate-npm-slimming/plan.md:14` (`14/14` vs `15/15` mutation count in Batch 2a roadmap row) — **fixed** in `0adaa45afb3a5332d10bff244a1c19cd3d0b04dd`.
+
+### Delta pass 1
+- Reviewed commit: `0adaa45afb3a5332d10bff244a1c19cd3d0b04dd`; packet: `git diff 4505ba16d7af668ed153de54e699a05893ec9ef4..0adaa45afb3a5332d10bff244a1c19cd3d0b04dd` (`specs/attention-budget-and-suite-speed/evidence/pass3-delta-review.json`, client `claude`)
+- Findings / Dispositions: `0` findings (`0 P0 / 0 P1 / 0 P2`); `status=passed`.
+
+### Post-review delta (`0adaa45afb3a5332d10bff244a1c19cd3d0b04dd..HEAD`)
+- `specs/attention-budget-and-suite-speed/evidence/pass1-review.json`: controller receipt for Pass 1 (`--mode review`)
+- `specs/attention-budget-and-suite-speed/evidence/pass2-challenge.json`: controller receipt for Pass 2 (`--mode challenge`)
+- `specs/attention-budget-and-suite-speed/evidence/pass3-delta-review.json`: controller receipt for Delta pass 1 (`--mode review`)
+- `specs/attention-budget-and-suite-speed/evidence/validation.md`: pass-disposition log above (non-executable evidence record only)
