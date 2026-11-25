@@ -30,13 +30,15 @@ import os,re,sys
 doc,work=sys.argv[1],sys.argv[2]
 expected_ids=[s for s in os.environ.get("EXPECTED_MANIFEST_IDS","").split(",") if s]
 t=open(doc,encoding='utf-8').read()
-# 枚举所有 CommonMark fence（跨行追踪引用块 > 与列表项容器缩进、缩进回退闭合、0..3 空格缩进、3+ 反引号或波浪线）。
+# 枚举所有 CommonMark fence（跨行追踪引用块 >、列表项容器与段落中断规则、缩进回退闭合、0..3 空格缩进、3+ 反引号或波浪线）。
 blocks=[]
+_atxhdr=re.compile(r'^[ \t]{0,3}#{1,6}(?:[ \t]+.*|[ \t]*)$')
+_setext=re.compile(r'^[ \t]{0,3}(?:=+|-+)[ \t]*$')
 _tbreak=re.compile(r'^[ \t]{0,3}(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})$')
-_litem=re.compile(r'^([ \t]{0,3})(?:[-*+]|\d{1,9}[.)])(?:([ \t]+)(.*))?$')
+_litem=re.compile(r'^([ \t]{0,3})([-*+]|\d{1,9}[.)])(?:([ \t]+)(.*))?$')
 _fopen=re.compile(r'^([ \t]*)(\`{3,}|~{3,})([^\r\n]*)$')
-def _adv_cols(s, target):
-    col=0; i=0; n=len(s)
+def _adv_cols(s, target, start_col=0):
+    col=start_col; i=0; n=len(s)
     while i<n and col<target:
         if s[i]==' ':
             col+=1; i+=1
@@ -48,101 +50,119 @@ def _adv_cols(s, target):
         else:
             return None
     return s[i:] if col>=target else None
-def _lead_cols(s):
-    col=0
+def _lead_cols(s, start_col=0):
+    col=start_col
     for ch in s:
         if ch==' ': col+=1
         elif ch=='\t': col+=4-(col%4)
         else: break
     return col
 containers=[]
-_fclose=None; _flang=''; _fbuf=[]; _fcdepth=0; _findent=0
+_fclose=None; _flang=''; _fbuf=[]; _fcdepth=0; _findent=0; _in_para=False
 for _ln in t.splitlines(keepends=True):
     _stripped=_ln.rstrip('\r\n')
     _eol=_ln[len(_stripped):]
-    _rem=_stripped
+    _rem=_stripped; _col=0
     _matched=0
     _limit=_fcdepth if _fclose is not None else len(containers)
     while _matched<_limit:
         _c=containers[_matched]
         if _c[0]=='quote':
-            _lc=_lead_cols(_rem)
-            if _lc<=3:
+            _lc=_lead_cols(_rem, _col)
+            if _lc-_col<=3:
                 _after_sp=_rem.lstrip(' \t')
                 if _after_sp.startswith('>'):
                     _qrem=_after_sp[1:]
+                    _qcol=_lc+1
                     if _qrem.startswith(' '):
-                        _qrem=_qrem[1:]
+                        _qrem=_qrem[1:]; _qcol+=1
                     elif _qrem.startswith('\t'):
-                        _qrem=' '*(4-((_lc+1)%4)-1)+_qrem[1:]
-                    _rem=_qrem; _matched+=1; continue
+                        _ts=_qcol+(4-(_qcol%4))
+                        _qrem=' '*(_ts-_qcol-1)+_qrem[1:]; _qcol+=1
+                    _rem=_qrem; _col=_qcol; _matched+=1; continue
             break
         else:
             if not _rem.strip(' \t'):
                 if _c[2]:
                     break
-                _rem=''; _matched+=1; continue
-            _next=_adv_cols(_rem, _c[1])
+                _rem=''; _col+=_c[1]; _matched+=1; continue
+            _next=_adv_cols(_rem, _col+_c[1], _col)
             if _next is not None:
-                _c[2]=False; _rem=_next; _matched+=1; continue
+                _c[2]=False; _rem=_next; _col+=_c[1]; _matched+=1; continue
             break
     if _fclose is not None:
         if _matched<_fcdepth:
             blocks.append((_flang,''.join(_fbuf))); _fclose=None; _fbuf=[]
-            del containers[_matched:]
+            del containers[_matched:]; _in_para=False
         else:
             _mc=_fclose.match(_rem)
-            if _mc and _lead_cols(_mc.group(1))<=3:
+            if _mc and _lead_cols(_mc.group(1), _col)-_col<=3:
                 blocks.append((_flang,''.join(_fbuf))); _fclose=None; _fbuf=[]
                 continue
             if _findent>0:
-                _srem=_rem; _sc=0
-                while _sc<_findent and _srem.startswith(' '):
-                    _srem=_srem[1:]; _sc+=1
+                _srem=_adv_cols(_rem, _col+_findent, _col)
+                if _srem is None:
+                    _srem=_rem.lstrip(' \t')
                 _fbuf.append(_srem+_eol)
             else:
                 _fbuf.append(_rem+_eol)
             continue
     else:
-        del containers[_matched:]
+        if _matched<len(containers):
+            del containers[_matched:]; _in_para=False
+    _blocked_leaf=False
     while True:
-        _lc=_lead_cols(_rem)
-        if _lc<=3:
+        _lc=_lead_cols(_rem, _col)
+        if _lc-_col<=3:
             _after_sp=_rem.lstrip(' \t')
             if _after_sp.startswith('>'):
                 _qrem=_after_sp[1:]
+                _qcol=_lc+1
                 if _qrem.startswith(' '):
-                    _qrem=_qrem[1:]
+                    _qrem=_qrem[1:]; _qcol+=1
                 elif _qrem.startswith('\t'):
-                    _qrem=' '*(4-((_lc+1)%4)-1)+_qrem[1:]
-                containers.append(['quote'])
-                _rem=_qrem
+                    _ts=_qcol+(4-(_qcol%4))
+                    _qrem=' '*(_ts-_qcol-1)+_qrem[1:]; _qcol+=1
+                containers.append(['quote']); _in_para=False
+                _rem=_qrem; _col=_qcol
                 continue
-        if _tbreak.match(_rem):
-            break
+        if (_in_para and _setext.match(_rem)) or _tbreak.match(_rem):
+            _in_para=False; _blocked_leaf=True; break
         _mi=_litem.match(_rem)
-        if _mi:
-            _mbody=_mi.group(3) if _mi.group(2) is not None else ''
-            if not _mbody.strip(' \t'):
-                _mpfx=_rem.rstrip(' \t')
-                _mbase=len(_mpfx.expandtabs(4))+1
-                containers.append(['list', _mbase, True])
-                _rem=''
+        if _mi and (_lc-_col<=3):
+            _mtok=_mi.group(2)
+            _mnum=_mtok[:-1] if _mtok[-1] in ('.', ')') else None
+            _mbody=_mi.group(4) if _mi.group(3) is not None else ''
+            if _in_para and (not _mbody.strip(' \t') or (_mnum is not None and int(_mnum)!=1)):
                 break
-            _mpfx=_rem[:_mi.start(3)].rstrip(' \t')
-            _mbase=len(_mpfx.expandtabs(4))+1
-            _fcol=len(_rem[:_mi.start(3)].expandtabs(4))
-            _cind=_mbase if (_fcol-_mbase>3) else _fcol
-            containers.append(['list', _cind, False])
-            _rem=_adv_cols(_rem, _cind) or ''
+            _in_para=False
+            _mcol_end=_lead_cols(_rem[:_mi.start(2)], _col)+len(_mtok)
+            if not _mbody.strip(' \t'):
+                _mbase=(_mcol_end-_col)+1
+                containers.append(['list', _mbase, True])
+                _rem=''; _col+=_mbase
+                break
+            _mbase_abs=_mcol_end+1
+            _fcol_abs=_lead_cols(_rem[_mi.start(3):], _mcol_end)
+            _cind_abs=_mbase_abs if (_fcol_abs-_mbase_abs>3) else _fcol_abs
+            _cind_rel=_cind_abs-_col
+            containers.append(['list', _cind_rel, False])
+            _rem=_adv_cols(_rem[_mi.start(3):], _cind_abs, _mcol_end) or ''
+            _col=_cind_abs
             continue
         break
     _m=_fopen.match(_rem)
-    if _m and _lead_cols(_m.group(1))<=3 and not (_m.group(2)[0]=='`' and '`' in _m.group(3)):
+    if _m and _lead_cols(_m.group(1), _col)-_col<=3 and not (_m.group(2)[0]=='`' and '`' in _m.group(3)):
         _ch=_m.group(2)[0]; _n=len(_m.group(2))
         _fclose=re.compile(rf'^([ \t]*){re.escape(_ch)}{{{_n},}}[ \t]*$')
         _flang=_m.group(3).strip(); _fbuf=[]
-        _fcdepth=len(containers); _findent=_lead_cols(_m.group(1))
+        _fcdepth=len(containers); _findent=_lead_cols(_m.group(1), _col)-_col; _in_para=False
+    elif not _rem.strip(' \t') or _blocked_leaf or _atxhdr.match(_rem):
+        _in_para=False
+    elif not _in_para and _lead_cols(_rem, _col)-_col>=4:
+        _in_para=False
+    else:
+        _in_para=True
 if _fclose is not None:
     blocks.append((_flang,''.join(_fbuf)))
 
@@ -243,10 +263,24 @@ cat >> "$WORK/list-marker-fence.md" <<'BAD'
 BAD
 lm_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/list-marker-fence.md" "$WORK/negative-extract" 2>&1)
 lm_rc=$?
-if [ "$lm_rc" -eq 1 ] && grep -qF "未登记的可运行块" <<<"$lm_out"; then
+if [ "$lm_rc" -eq 1 ] && grep -qF '[bash] echo "unregistered marker-line fence"' <<<"$lm_out"; then
   ok "块清单能报列表标记行未登记代码块"
 else
   bad "块清单能报列表标记行未登记代码块" "rc=$lm_rc out=$lm_out"
+fi
+cp "$DOC" "$WORK/ordered-marker-fence.md"
+cat >> "$WORK/ordered-marker-fence.md" <<'BAD'
+
+100. ```bash
+     echo "unregistered ordered-marker-line fence"
+     ```
+BAD
+olm_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/ordered-marker-fence.md" "$WORK/negative-extract" 2>&1)
+olm_rc=$?
+if [ "$olm_rc" -eq 1 ] && grep -qF '[bash] echo "unregistered ordered-marker-line fence"' <<<"$olm_out"; then
+  ok "块清单能报有序列表标记行未登记代码块"
+else
+  bad "块清单能报有序列表标记行未登记代码块" "rc=$olm_rc out=$olm_out"
 fi
 cp "$DOC" "$WORK/list-continuation-fence.md"
 cat >> "$WORK/list-continuation-fence.md" <<'BAD'
@@ -259,7 +293,7 @@ cat >> "$WORK/list-continuation-fence.md" <<'BAD'
 BAD
 lc_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/list-continuation-fence.md" "$WORK/negative-extract" 2>&1)
 lc_rc=$?
-if [ "$lc_rc" -eq 1 ] && grep -qF "未登记的可运行块" <<<"$lc_out"; then
+if [ "$lc_rc" -eq 1 ] && grep -qF '[bash] echo "unregistered ordered-list continuation fence"' <<<"$lc_out"; then
   ok "块清单能报有序列表续行未登记代码块"
 else
   bad "块清单能报有序列表续行未登记代码块" "rc=$lc_rc out=$lc_out"
@@ -275,7 +309,7 @@ Outside paragraph closes the list-nested fence.
 BAD
 ld_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/list-dedent-fence.md" "$WORK/negative-extract" 2>&1)
 ld_rc=$?
-if [ "$ld_rc" -eq 1 ] && grep -qF "未登记的可运行块" <<<"$ld_out"; then
+if [ "$ld_rc" -eq 1 ] && grep -qF '[bash] echo "unclosed continuation fence closed by dedent"' <<<"$ld_out"; then
   ok "块清单能报缩进回退闭合的列表代码块"
 else
   bad "块清单能报缩进回退闭合的列表代码块" "rc=$ld_rc out=$ld_out"
@@ -288,6 +322,11 @@ cat >> "$WORK/indented-code-control.md" <<'GOOD'
       ```
 
 Root paragraph closes the list before root-level indented code.
+100. wrapped numeral stays inside paragraph per CommonMark list-interruption rule
+
+     ```bash
+     echo "5-space root indented code after paragraph is not a runnable fence"
+     ```
 
     ```bash
     echo "4-space root indented code is not a runnable fence"
