@@ -30,22 +30,28 @@ import os,re,sys
 doc,work=sys.argv[1],sys.argv[2]
 expected_ids=[s for s in os.environ.get("EXPECTED_MANIFEST_IDS","").split(",") if s]
 t=open(doc,encoding='utf-8').read()
-# 枚举所有 CommonMark fence（0..3 空格缩进、3+ 反引号或波浪线），新标签/无标签/缩进/~~~ 块也必须进入处置。
+# 枚举所有 CommonMark fence（含引用块 > 与列表项容器前缀、0..3 空格缩进、3+ 反引号或波浪线）。
 blocks=[]
-_fopen=re.compile(r'^[ \t]{0,3}(`{3,}|~{3,})([^\r\n]*)$')
+_cpfx=re.compile(r'^(?:[ \t]{0,3}>[ \t]?|[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+)*')
+_qonly=re.compile(r'^(?:[ \t]{0,3}>[ \t]?)*')
+_fopen=re.compile(r'^([ \t]*)(\`{3,}|~{3,})([^\r\n]*)$')
 _fclose=None; _flang=''; _fbuf=[]
 for _ln in t.splitlines(keepends=True):
+    _stripped=_ln.rstrip('\r\n')
     if _fclose is not None:
-        if _fclose.match(_ln):
+        _qrest=_qonly.sub('',_stripped,count=1)
+        if _fclose.match(_qrest):
             blocks.append((_flang,''.join(_fbuf))); _fclose=None; _fbuf=[]
         else:
             _fbuf.append(_ln)
         continue
-    _m=_fopen.match(_ln.rstrip('\r\n'))
-    if _m and not (_m.group(1)[0]=='`' and '`' in _m.group(2)):
-        _ch=_m.group(1)[0]; _n=len(_m.group(1))
-        _fclose=re.compile(rf'^[ \t]{{0,3}}{re.escape(_ch)}{{{_n},}}[ \t]*\r?$')
-        _flang=_m.group(2).strip(); _fbuf=[]
+    _has_container=bool(_cpfx.match(_stripped).group(0))
+    _crest=_cpfx.sub('',_stripped,count=1)
+    _m=_fopen.match(_crest)
+    if _m and (_has_container or len(_m.group(1).expandtabs(4))<=3) and not (_m.group(2)[0]=='`' and '`' in _m.group(3)):
+        _ch=_m.group(2)[0]; _n=len(_m.group(2))
+        _fclose=re.compile(rf'^[ \t]*{re.escape(_ch)}{{{_n},}}[ \t]*$')
+        _flang=_m.group(3).strip(); _fbuf=[]
 if _fclose is not None:
     blocks.append((_flang,''.join(_fbuf)))
 
@@ -122,6 +128,34 @@ if [ "$unk_rc" -eq 1 ] && grep -qF "未登记的可运行块" <<<"$unk_out"; the
   ok "块清单能报未知 fence 标签"
 else
   bad "块清单能报未知 fence 标签" "rc=$unk_rc out=$unk_out"
+fi
+cp "$DOC" "$WORK/quoted-fence.md"
+cat >> "$WORK/quoted-fence.md" <<'BAD'
+
+> ```bash
+> echo "unregistered quoted fence"
+> ```
+BAD
+q_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/quoted-fence.md" "$WORK/negative-extract" 2>&1)
+q_rc=$?
+if [ "$q_rc" -eq 1 ] && grep -qF "未登记的可运行块" <<<"$q_out"; then
+  ok "块清单能报引用块内未登记代码块"
+else
+  bad "块清单能报引用块内未登记代码块" "rc=$q_rc out=$q_out"
+fi
+cp "$DOC" "$WORK/list-marker-fence.md"
+cat >> "$WORK/list-marker-fence.md" <<'BAD'
+
+- ```bash
+  echo "unregistered marker-line fence"
+  ```
+BAD
+lm_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/list-marker-fence.md" "$WORK/negative-extract" 2>&1)
+lm_rc=$?
+if [ "$lm_rc" -eq 1 ] && grep -qF "未登记的可运行块" <<<"$lm_out"; then
+  ok "块清单能报列表标记行未登记代码块"
+else
+  bad "块清单能报列表标记行未登记代码块" "rc=$lm_rc out=$lm_out"
 fi
 empty_inv_out=$(EXPECTED_MANIFEST_IDS="" python3 "$WORK/check-block-manifest.py" "$DOC" "$WORK/negative-extract" 2>&1)
 empty_inv_rc=$?
@@ -319,17 +353,20 @@ check "含换行符的目标路径返回 2" "$(FETCH_LOG="$WORK/nl-path.log" run
 check "含换行符兄弟目录未写文件" "$([ -e "$nl_sib/evil.json" ] && echo created || echo untouched)" untouched
 check "越出 OUT 的路径返回 2" "$(FETCH_LOG="$WORK/outside-out.log" run_fetch "$WORK/outside.json" 'https://x/data')" 2
 check "越出 OUT 的路径未写文件" "$([ -e "$WORK/outside.json" ] && echo created || echo absent)" absent
-mkdir -p "$WORK/cdpath-decoy/data" "$WORK/cdpath-work/data/sub"
+mkdir -p "$WORK/cdpath-decoy/data/sub" "$WORK/cdpath-work/data/sub"
 rc_cdpath=$( export PATH="$WORK/bin:$PATH" UA="t t@example.invalid" CDPATH="$WORK/cdpath-decoy"
              cd "$WORK/cdpath-work" || exit 9
              # shellcheck disable=SC1090
              . "$WORK/fetch.sh" >/dev/null 2>&1
+             OUT=data; export OUT
+             fetch "data/sub/bare.json" 'https://x/data' >/dev/null 2>&1 || exit 81
              OUT=./data; export OUT
              fetch "data/sub/rel.json" 'https://x/data' >/dev/null 2>&1 &&
              fetch "./data/sub/rel2.json" 'https://x/data' >/dev/null 2>&1
              echo $? )
-check "CDPATH 下 OUT=./data 兼容 data/ 与 ./data/ 返回 0" "$rc_cdpath" 0
-check "CDPATH 诱饵目录未被写入" "$([ -e "$WORK/cdpath-decoy/data/sub/rel.json" ] && echo leaked || echo clean)" clean
+check "CDPATH 下 OUT=data 与 OUT=./data 均返回 0" "$rc_cdpath" 0
+check "CDPATH 工作目录写入 bare.json" "$([ -f "$WORK/cdpath-work/data/sub/bare.json" ] && echo present || echo missing)" present
+check "CDPATH 诱饵目录未被写入" "$([ -e "$WORK/cdpath-decoy/data/sub/bare.json" ] || [ -e "$WORK/cdpath-decoy/data/sub/rel.json" ] && echo leaked || echo clean)" clean
 rc_unset=$( set -u
             export PATH="$WORK/bin:$PATH" UA="t t@example.invalid"
             cd "$WORK/cdpath-work/data" || exit 9
@@ -341,15 +378,31 @@ rc_unset=$( set -u
             OUT="" fetch "$WORK/outside-empty.json" 'https://x/data' >/dev/null 2>&1 && exit 93
             echo 0 )
 check "set -u 下 unset/空 OUT 默认当前目录且拦外部路径" "$rc_unset" 0
-rc_dirrace=$( export PATH="$WORK/bin:$PATH" UA="t t@example.invalid" CURL_MKDIR_TARGET="$WORK/run/became-dir"
+rc_dirrace=$( export PATH="$WORK/bin:$PATH" UA="t t@example.invalid"
               cd "$WORK/run" || exit 9
               # shellcheck disable=SC1090
               . "$WORK/fetch.sh" >/dev/null 2>&1
+              eval "orig_accept() $(declare -f accept | tail -n +2)"
+              accept() { orig_accept "$1" && mkdir "$WORK/run/became-dir"; }
               OUT=$PWD; export OUT
-              fetch "$WORK/run/became-dir" 'https://x/mkdirduring' >/dev/null 2>&1
-              echo $? )
-check "下载期间目标变为目录时返回 2" "$rc_dirrace" 2
-check "下载期间新建目录内未被链入 .part" "$(find "$WORK/run/became-dir" -mindepth 1 | wc -l | tr -d ' ')" 0
+              fetch "$WORK/run/became-dir" 'https://x/data' >/dev/null 2>&1
+              rc=$?
+              printf '%s:%s\n' "$rc" "$FETCHED" )
+check "链接边界目标变为目录时返回 2 且 FETCHED=0" "$rc_dirrace" "2:0"
+check "链接边界新建目录内未被链入 .part" "$(find "$WORK/run/became-dir" -mindepth 1 | wc -l | tr -d ' ')" 0
+mkdir -p "$WORK/ext-linkdir"
+rc_dirlink=$( export PATH="$WORK/bin:$PATH" UA="t t@example.invalid"
+              cd "$WORK/run" || exit 9
+              # shellcheck disable=SC1090
+              . "$WORK/fetch.sh" >/dev/null 2>&1
+              eval "orig_accept() $(declare -f accept | tail -n +2)"
+              accept() { orig_accept "$1" && ln -s "$WORK/ext-linkdir" "$WORK/run/became-dirlink"; }
+              OUT=$PWD; export OUT
+              fetch "$WORK/run/became-dirlink" 'https://x/data' >/dev/null 2>&1
+              rc=$?
+              printf '%s:%s\n' "$rc" "$FETCHED" )
+check "链接边界目标变为目录符号链接时返回 2 且 FETCHED=0" "$rc_dirlink" "2:0"
+check "链接边界目录符号链接目标未被链入 .part" "$(find "$WORK/ext-linkdir" -mindepth 1 | wc -l | tr -d ' ')" 0
 check "无 .part 残留"         "$(find "$WORK/run" "$WORK/ext-parent-dir" -name '*.part.*' | wc -l | tr -d ' ')" 0
 
 run_fetch_smallcap() {  # 把 MAX_BYTES 压到很小，用来触发体积上限分支

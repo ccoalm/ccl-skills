@@ -327,6 +327,22 @@ def test_collect_results_corrupt_junit_xml_records_infra_missing_and_preserves_b
     assert "🚨 基础设施失败" in proc.stdout
     assert lr_path.read_bytes() == baseline_bytes
 
+    for bad_payload in (
+        '<?xml version="1.0"?><testsuite xmlns="urn:junit" name="ns">'
+        '<testcase classname="m" name="t_unit"><failure>boom</failure></testcase></testsuite>',
+        '<?xml version="1.0"?><testsuite name="ns">'
+        '<testcase xmlns:ns="urn:x" ns:name="t_unit" classname="m"><failure>boom</failure></testcase></testsuite>',
+    ):
+        corrupt.write_text(bad_payload)
+        proc_mixed_ns = g.subprocess.run(
+            [sys.executable, str(Path(g.__file__).resolve()), "--config", str(cfg_path)],
+            capture_output=True, text=True, env=env,
+        )
+        assert proc_mixed_ns.returncode == 1
+        assert "corrupt.xml" in proc_mixed_ns.stderr
+        assert "🚨 基础设施失败" in proc_mixed_ns.stdout
+        assert lr_path.read_bytes() == baseline_bytes
+
     ns_only = tmp_path / "ns_only.xml"
     ns_only.write_text(
         '<?xml version="1.0"?><testsuite xmlns="urn:junit" name="ns">'

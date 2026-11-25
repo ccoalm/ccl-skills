@@ -135,6 +135,18 @@ rm -f "$tmp/markerless/src/colors.go"
 ln -s "$tmp/other/render/colors.go" "$tmp/markerless/src/ext_sym.go"
 assert_hit  "markerless directory scan does NOT exempt escaping symlink to sibling render/" "hardcoded ANSI/OSC escape literal" "$tmp/markerless" --allow=render
 rm -f "$tmp/markerless/src/ext_sym.go"
+ln -s "$tmp/markerless/src" "$tmp/markerless/scan_link"
+cp "$tmp/src/colors.go" "$tmp/markerless/render/bad_escape.go"
+ln -s "../render/bad_escape.go" "$tmp/markerless/src/to_sibling_render.go"
+assert_hit  "symlinked markerless directory scan does NOT exempt symlink escaping scanned dir" "hardcoded ANSI/OSC escape literal" "$tmp/markerless/scan_link" --allow=render
+rm -f "$tmp/markerless/src/to_sibling_render.go" "$tmp/markerless/render/bad_escape.go" "$tmp/markerless/scan_link"
+ln -s "../render/nested/ansi.go" "$tmp/markerless/src/to_cwd_render.go"
+if (cd "$tmp/markerless" && python3 -B -W error "$script" "src/to_cwd_render.go" --allow=render >/dev/null 2>&1); then
+  pass=$((pass+1)); echo "ok   - markerless cwd explicit file symlink into cwd render/ stays exempt (0)"
+else
+  fail=$((fail+1)); echo "FAIL - markerless cwd explicit file symlink into cwd render/ rejected"
+fi
+rm -f "$tmp/markerless/src/to_cwd_render.go"
 bs_dir="$tmp/markerless_bs/render\\box"
 mkdir -p "$bs_dir"
 cp "$tmp/src/colors.go" "$bs_dir/colors.go"

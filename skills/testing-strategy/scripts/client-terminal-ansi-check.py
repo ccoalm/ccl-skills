@@ -122,16 +122,21 @@ def _scope_roots_for_arg(arg, cwd_real):
     anchor_dir = _lexical_anchor_dir(arg)
     proj = _find_project_root(anchor_dir)
     if proj is not None:
-        return proj, proj
-    if _is_within(anchor_dir, cwd_real):
-        return anchor_dir, cwd_real
-    return anchor_dir, os.path.abspath(os.sep)
+        return (proj,), proj
+    if os.path.isdir(arg):
+        containment_roots = (anchor_dir, os.path.realpath(arg))
+    elif _is_within(anchor_dir, cwd_real):
+        containment_roots = (cwd_real,)
+    else:
+        containment_roots = (anchor_dir,)
+    segment_root = cwd_real if _is_within(anchor_dir, cwd_real) else os.path.abspath(os.sep)
+    return containment_roots, segment_root
 
 
 def _rel_segments(path, roots):
-    containment_root, segment_root = roots
+    containment_roots, segment_root = roots
     real_file = os.path.realpath(path)
-    if not _is_within(real_file, containment_root):
+    if not all(_is_within(real_file, bound) for bound in containment_roots):
         return None
     rel = os.path.relpath(real_file, segment_root)
     return [s for s in _split_fs_path(rel) if s != "."]

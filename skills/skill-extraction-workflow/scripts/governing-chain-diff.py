@@ -36,9 +36,9 @@ from dataclasses import dataclass
 
 # A heading line: capture level and text.
 _HEADING = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
-# CommonMark §4.1 thematic break (`---`, `***`, `___` with 0..3 leading spaces).
+# CommonMark §4.1 thematic break (`---`, `***`, `___` with 0..3 spaces relative to container).
 _THEMATIC_BREAK = re.compile(
-    r"^[ \t]{0,3}(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})\r?$"
+    r"^([ \t]*)(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})\r?$"
 )
 # A list item: capture leading indent and optional first-line body text.
 _LIST_ITEM = re.compile(r"^([ \t]*)(?:[-*+]|\d+[.)])(?:[ \t]+(.*\S))?[ \t]*\r?$")
@@ -244,11 +244,23 @@ def parse(source: str, *, min_chars: int = 25) -> list[Obligation]:
             list_stack.clear()
             continue
 
-        if _THEMATIC_BREAK.match(raw):
-            flush_item()
-            flush_paragraph()
-            list_stack.clear()
-            continue
+        tbreak = _THEMATIC_BREAK.match(raw)
+        if tbreak:
+            lead_cols = len(tbreak.group(1).expandtabs(4))
+            container_indent = 0
+            if pending_item is not None and lead_cols >= pending_content_indent:
+                container_indent = pending_content_indent
+            else:
+                for _m_ind, c_ind, _key in reversed(list_stack):
+                    if lead_cols >= c_ind:
+                        container_indent = c_ind
+                        break
+            if lead_cols <= container_indent + 3:
+                flush_item()
+                flush_paragraph()
+                while list_stack and lead_cols < list_stack[-1][1]:
+                    list_stack.pop()
+                continue
 
         item = _LIST_ITEM.match(raw)
         if item:

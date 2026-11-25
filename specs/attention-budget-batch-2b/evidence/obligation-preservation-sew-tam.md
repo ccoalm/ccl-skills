@@ -208,12 +208,12 @@ Aliases: `MPR_SKILL`=`skills/multi-perspective-research/SKILL.md`, `MPR_PDA`=`..
 |Judgment-delta matr…|`SEW_UIUX#001`(`rw`)|`SEW_UIUX:166` `§Completion Gate`|`merged`|`c=1`(`Judgment-delta matrix…`),`q:v`;expanded from SKILL.md Step 6|
 |Minimum pressure se…|`SEW_UIUX#002`(`rw`)|`SEW_UIUX:168` `§Completion Gate`|`merged`|`c=1`(`Minimum pressure set …`),`q:v`;merged explicit-irrelevant clause|
 |For design skills e…|`SEW_VAL#001`(`rw`)|`SEW_VAL:82` `§Behavioral Validation`|`merged`|`c=1`(`satisfies the executa…`),`q:v`;repointed to SEW_DLE|
-|`+record-list` uses…|`TAM_BIT#001`(`rw`)|`TAM_UPD:83` `§List all records (paginated)`|`rehosted`|`c=1`(``+record-list` uses `…`),`q:v`;-TAM_BIT->+TAM_UPD(v)|
-|Default output is m…|`TAM_BIT#002`(`rw`)|`TAM_UPD:83` `§List all records (paginated)`|`rehosted`|`c=1`(`Default output is mar…`),`q:v`;-TAM_BIT->+TAM_UPD(v)|
-|pass `--format json…|`TAM_BIT#003`(`rw`)|`TAM_UPD:83` `§List all records (paginated)`|`rehosted`|`c=1`(`pass `--format json` …`),`q:v`;-TAM_BIT->+TAM_UPD(v)|
-|`--json` payload is…|`TAM_BIT#004`(`rw`)|`TAM_UPD:136` `§Update a single record`|`rehosted`|`c=1`(``--json` payload is t…`),`q:v`;-TAM_BIT->+TAM_UPD(v)|
-|`record_id` is the …|`TAM_BIT#005`(`rw`)|`TAM_UPD:137` `§Update a single record`|`rehosted`|`c=1`(``record_id` is the in…`),`q:v`;-TAM_BIT->+TAM_UPD(v)|
-|never use 用例ID dire…|`TAM_BIT#006`(`rw`)|`TAM_UPD:137` `§Update a single record`|`rehosted`|`c=1`(`never use 用例ID direct…`),`q:v`;-TAM_BIT->+TAM_UPD(v)|
-|`+record-get` retur…|`TAM_BIT#007`(`rw`)|`TAM_UPD:142` `§Append to 信息流转 (read-then-write, single-writer precondition, rolling retention)`|`rehosted`|`c=1`(``+record-get` returns…`),`q:`not`=12`;moved to TAM_UPD Step 9|
-|Use `+record-list` …|`TAM_BIT#008`(`rw`)|`TAM_UPD:142` `§Append to 信息流转 (read-then-write, single-writer precondition, rolling retention)`|`rehosted`|`c=1`(`use `+record-list` wi…`),`q:v`;moved to TAM_UPD Step 9|
-|**拉取现有记录** — `lark-…|`TAM_UPD#001`(`rw`)|`TAM_UPD:61` `§update 工作流`|`merged`|`c=1`(``lark-cli base +recor…`),`q:v`;repointed to local Step 8|
+|`+record-list` uses…|`TAM_BIT#001`(`rw`)|`TAM_UPD:86` `§List all records (paginated)`|`rehosted`|`c=1`(``+record-list` uses `…`),`q:v`;-TAM_BIT->+TAM_UPD(v)|
+|Default output is m…|`TAM_BIT#002`(`rw`)|`TAM_UPD:86` `§List all records (paginated)`|`rehosted`|`c=1`(`Default output is mar…`),`q:v`;-TAM_BIT->+TAM_UPD(v)|
+|pass `--format json…|`TAM_BIT#003`(`rw`)|`TAM_UPD:86` `§List all records (paginated)`|`rehosted`|`c=1`(`pass `--format json` …`),`q:v`;-TAM_BIT->+TAM_UPD(v)|
+|`--json` payload is…|`TAM_BIT#004`(`rw`)|`TAM_UPD:139` `§Update a single record`|`rehosted`|`c=1`(``--json` payload is t…`),`q:v`;-TAM_BIT->+TAM_UPD(v)|
+|`record_id` is the …|`TAM_BIT#005`(`rw`)|`TAM_UPD:140` `§Update a single record`|`rehosted`|`c=1`(``record_id` is the in…`),`q:v`;-TAM_BIT->+TAM_UPD(v)|
+|never use 用例ID dire…|`TAM_BIT#006`(`rw`)|`TAM_UPD:140` `§Update a single record`|`rehosted`|`c=1`(`never use 用例ID direct…`),`q:v`;-TAM_BIT->+TAM_UPD(v)|
+|`+record-get` retur…|`TAM_BIT#007`(`rw`)|`TAM_UPD:145` `§Append to 信息流转 (read-then-write, single-writer precondition, rolling retention)`|`rehosted`|`c=1`(``+record-get` returns…`),`q:`not`=12`;moved to TAM_UPD Step 9|
+|Use `+record-list` …|`TAM_BIT#008`(`rw`)|`TAM_UPD:145` `§Append to 信息流转 (read-then-write, single-writer precondition, rolling retention)`|`rehosted`|`c=1`(`use `+record-list` wi…`),`q:v`;moved to TAM_UPD Step 9|
+|**拉取现有记录** — `lark-…|`TAM_UPD#001`(`rw`)|`TAM_UPD:64` `§update 工作流`|`merged`|`c=1`(``lark-cli base +recor…`),`q:v`;repointed to local Step 8|
