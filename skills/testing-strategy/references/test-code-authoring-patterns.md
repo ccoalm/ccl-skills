@@ -361,6 +361,17 @@ func TestExportTokenTTL(t *testing.T) {
 
 ---
 
+## 11. 默认未设路径、有状态辅助函数与字面量复核细则
+
+承载入口 `## Core Rules` 关于 change-detector 审阅转换、行为纠正清扫与默认未设路径的完整条文：
+
+- Reviewers convert them to relationship invariants plus a minimal product-guaranteed anchor, never transient values. Keep a literal only when it traces to a *documented* product/API/security contract or past defect, not implementation state, and the test name states that contract; otherwise, after confirming no behavior coverage is lost, convert it to a relationship invariant.
+- If coverage exists, extend or parameterize it instead of creating a new test function or file. Duplicate test structure wastes maintenance and produces misleading coverage numbers.
+  - **When the change CORRECTS a behavior (a compliance, contract, privacy, or spec-conformance fix), that same grep has a second job: find the assertions that PIN THE OLD, NOW-WRONG BEHAVIOR** — and sweep every layer that asserts it, not only the unit tests you are already editing. Rewrite each pinned assertion to the corrected contract in the same change (never delete it to go green; the corrected form is what stops the old behavior from returning).
+- When the pinned input substitutes for a production default path that could mask caller behavior, also exercise the unset/default path at the lowest layer that actually resolves that default (a parameterized unit test suffices when the default is local; use the real command/demo only when the default is assembled across runtime/caller boundaries). For a helper that retains mutable state, caches, accumulates, or reuses a process/global resource, add a multi-call run when repeated calls can affect the observable contract, failure mode, resource lifetime, or caller-visible state (not when repeated calls are intentionally identical and only performance differs). A green test over only the convenient pinned input is not proof the default path works. (Tests that intentionally pin impossible/legacy/migration-only inputs are exempt.)
+
+---
+
 ## 快速选用决策表
 
 | 写代码时遇到 | 用 |

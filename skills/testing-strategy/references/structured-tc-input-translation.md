@@ -4,6 +4,21 @@ Use this reference when the input is a set of structured test cases from `test-a
 
 The mapping is directional — not every TC becomes one automated test, and one TC may need assertions at multiple layers.
 
+## Source Resolution, Coverage Gap, And Scope Narrowing
+
+- **User provided TC URL or file path** → fetch and use it directly.
+- **`.report-config.json` exists in the working directory** → auto-read `base_token` + `table_id`; fetch active TCs from Bitable via `lark-cli base +record-list`; filter out `废弃` records before passing to the implementation queue. Do not ask the user — auto-read is the default.
+- **No TC source found** → code analysis may define existing-behavior or refactor coverage. For product delivery, continue from the acceptance source, record the TC gap, and use code-derived scenarios only as supplemental risk coverage.
+- **TC coverage vs. test code coverage — expected gap:** TCs cover functional and interaction scope (QA perspective: user journeys, acceptance criteria, error paths, permissions). Test code covers a broader surface: unit-level logic, internal invariants, boundary conditions, data validation, refactoring safety nets. These two scopes do not and need not align 1:1.
+  - Test code without a TC ID is **normal and expected**. It runs as part of code quality coverage and does not sync to Bitable. Do not force-add TC IDs to tests that have no corresponding Bitable entry — that creates phantom TC links. When the underlying code is removed or deprecated, these tests should be reviewed and the user prompted to decide whether to delete them.
+  - A TC entry without automated test code is also valid: manual test, deferred automation, or blocked environment.
+  - The automated report (`gen_report.py`) tracks TC-mapped results (tests that register TC IDs via the `tc(...)` helper — see `test-artifact-management/references/tc-marker-conventions.md`) plus a separate "未链接 TC 的测试" section for tests without TC links. Broader code coverage is a code quality concern tracked separately (e.g. coverage reports, CI pass/fail).
+- When scope is confirmed:
+  - **全局**: run the full scenario matrix from `testing-strategy` workflow; consult TC list for all active TCs.
+  - **文件**: narrow TC list to TCs whose `模块` or `功能点` maps to that file; run scenario matrix for that file's contracts and business rules.
+  - **函数 / 接口**: narrow to TCs directly covering that function or endpoint; add negative-path and boundary cases if not already in the TC list.
+- Keep these entrypoint anchors in view while translating: normalize TC status before implementation (full status table in the reference); treat `失败` as a regression candidate requiring RED-before-implementation or a named evidence gap; treat `阻塞` as blocked with owner/gap; exclude `跳过` / `废弃` from the implementation queue without deleting or overwriting Bitable records; treat P0/P1/P2 as business risk signals, not direct layer or CI-gate assignments; keep TC IDs in sidecar/helper metadata rather than test function names; let this skill choose the layer/gate, stack skills implement mechanics, and `test-artifact-management` own TC content changes and Bitable sync. After pre-check and field mapping, run the standard workflow from Step 1 (discover repository test topology).
+
 ## Pre-check before translating
 
 | TC 状态 | 处理方式 |

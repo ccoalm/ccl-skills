@@ -388,7 +388,348 @@ run_case "cjk: fullwidth punct does not flip english floor" 0 "" \
 "
 
 # ---------------------------------------------------------------------------
-# 16. Anchor self-check: prove the harness can actually fail. A deliberately
+# 16. CommonMark §4.5 fenced code blocks & GIT_* env isolation:
+#     (a) 4-backtick outer fence containing an inner 3-backtick block must NOT
+#         flip in_fence off inside the outer block (editing illustrative rules
+#         inside the inner block derives 0 rows);
+#     (b) 4-backtick outer fence containing a single 3-backtick line must NOT
+#         leave in_fence out of sync and swallow obligations after the block;
+#     (c) 3-backtick fence containing a ~~~ line must NOT close on ~~~;
+#     (d) a line starting with inline ```code``` (backticks in info string) is
+#         prose, not an unclosed code fence;
+#     (e) --repo / --rev scrubs poisoned ambient GIT_DIR / GIT_WORK_TREE.
+# ---------------------------------------------------------------------------
+run_case "fence: 4-backtick outer ignores inner 3-backtick prose" 0 "" \
+"## Core Rules
+
+\`\`\`\`markdown
+\`\`\`
+- Illustrative obligation inside outer 4-backtick example before edit.
+\`\`\`
+\`\`\`\`
+
+$HOST_A
+" \
+"## Core Rules
+
+\`\`\`\`markdown
+\`\`\`
+- Illustrative obligation inside outer 4-backtick example after edit.
+\`\`\`
+\`\`\`\`
+
+$HOST_A
+"
+
+run_case "fence: 4-backtick outer with odd inner 3-backtick line" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+\`\`\`\`markdown
+\`\`\`
+unclosed example snippet
+\`\`\`\`
+
+$HOST_A
+  - $OBLIGATION
+" \
+"## Core Rules
+
+\`\`\`\`markdown
+\`\`\`
+unclosed example snippet
+\`\`\`\`
+
+$HOST_A
+"
+
+run_case "fence: 3-backtick outer wrapping tilde inner line" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+\`\`\`text
+~~~
+still inside backtick fence
+\`\`\`
+
+$HOST_A
+  - $OBLIGATION
+" \
+"## Core Rules
+
+\`\`\`text
+~~~
+still inside backtick fence
+\`\`\`
+
+$HOST_A
+"
+
+run_case "fence: inline triple-backtick span at line start" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+\`\`\`--force\`\`\` is forbidden on any shared branch without recorded lease proof.
+$HOST_A
+  - $OBLIGATION
+" \
+"## Core Rules
+
+\`\`\`--force\`\`\` is forbidden on any shared branch without recorded lease proof.
+$HOST_A
+"
+
+run_case "fence: 4-space indented delimiter at root is indented code, not fence" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+    \`\`\`
+
+$HOST_A
+  - $OBLIGATION
+" \
+"## Core Rules
+
+    \`\`\`
+
+$HOST_A
+"
+
+run_case "fence: list-nested 5-space fence still shields inner example prose" 0 "" \
+"## Core Rules
+
+  1. Ordered step introducing an indented code example:
+
+     \`\`\`markdown
+     - Illustrative list rule inside valid list-nested fence before edit.
+     \`\`\`
+
+$HOST_A
+" \
+"## Core Rules
+
+  1. Ordered step introducing an indented code example:
+
+     \`\`\`markdown
+     - Illustrative list rule inside valid list-nested fence after edit.
+     \`\`\`
+
+$HOST_A
+"
+
+run_case "fence: unclosed list-nested fence ends on dedent to root rule" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+  1. Ordered step introducing an unclosed indented fence:
+
+     \`\`\`markdown
+     - Illustrative list rule inside unclosed list-nested fence.
+
+$HOST_A
+  - $OBLIGATION
+" \
+"## Core Rules
+
+  1. Ordered step introducing an unclosed indented fence:
+
+     \`\`\`markdown
+     - Illustrative list rule inside unclosed list-nested fence.
+
+$HOST_A
+"
+
+NBSP=$'\xc2\xa0'
+run_case "fence: column-0 NBSP line is non-blank and closes unclosed list fence" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+1. Ordered step introducing an unclosed 3-space list fence:
+
+   \`\`\`markdown
+   - Illustrative list rule inside unclosed 3-space list fence.
+$NBSP
+   $HOST_A
+     - $OBLIGATION
+" \
+"## Core Rules
+
+1. Ordered step introducing an unclosed 3-space list fence:
+
+   \`\`\`markdown
+   - Illustrative list rule inside unclosed 3-space list fence.
+$NBSP
+   $HOST_A
+"
+
+run_case "fence: marker-line fence (- \`\`\`) skips inner list & closes on dedent" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+- \`\`\`markdown
+  - Illustrative list rule inside marker-line fence.
+
+$HOST_A
+  - $OBLIGATION
+" \
+"## Core Rules
+
+- \`\`\`markdown
+  - Illustrative list rule inside marker-line fence.
+
+$HOST_A
+"
+
+run_case "fence: 5-space indented code on list-marker line keeps content_indent at marker+1" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+-     indented_code_on_marker_line()
+
+  \`\`\`markdown
+  - Illustrative list rule inside 2-space fence of item with 5-space first line.
+
+$HOST_A
+  - $OBLIGATION
+" \
+"## Core Rules
+
+-     indented_code_on_marker_line()
+
+  \`\`\`markdown
+  - Illustrative list rule inside 2-space fence of item with 5-space first line.
+
+$HOST_A
+"
+
+run_case "fence: list-nested thematic break retains enclosing list for unclosed fence dedent" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+- Outer list item introducing a thematic break before an unclosed fence:
+
+  * * *
+
+  \`\`\`markdown
+  - Illustrative list rule inside 2-space unclosed fence after thematic break.
+
+$HOST_A
+  - $OBLIGATION
+" \
+"## Core Rules
+
+- Outer list item introducing a thematic break before an unclosed fence:
+
+  * * *
+
+  \`\`\`markdown
+  - Illustrative list rule inside 2-space unclosed fence after thematic break.
+
+$HOST_A
+"
+
+lazy_env_check="$(GIT_NO_LAZY_FETCH=0 GIT_DIR=/poison python3 - "$TOOL" <<'PYEOF'
+import importlib.util, os, sys
+spec = importlib.util.spec_from_file_location('gcd', sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+sys.modules['gcd'] = m
+spec.loader.exec_module(m)
+clean = m._git_clean_env()
+ok = (
+    clean.get("GIT_NO_LAZY_FETCH") == "1"
+    and clean.get("GIT_CONFIG_GLOBAL") == os.devnull
+    and clean.get("GIT_CONFIG_SYSTEM") == os.devnull
+    and "GIT_DIR" not in clean
+)
+print(
+    "ok"
+    if ok
+    else f"bad:lazy={clean.get('GIT_NO_LAZY_FETCH')!r},global={clean.get('GIT_CONFIG_GLOBAL')!r},sys={clean.get('GIT_CONFIG_SYSTEM')!r}"
+)
+PYEOF
+)"
+if [ "$lazy_env_check" = "ok" ]; then
+  printf 'PASS %s\n' "git: _git_clean_env sets GIT_NO_LAZY_FETCH=1 & GIT_CONFIG_GLOBAL/SYSTEM=/dev/null"
+  pass=$((pass + 1))
+else
+  printf 'FAIL %-46s got %s\n' "git: _git_clean_env sets GIT_NO_LAZY_FETCH=1 & GIT_CONFIG_GLOBAL/SYSTEM=/dev/null" "$lazy_env_check"
+  fail=$((fail + 1))
+fi
+
+mkdir -p "$WORK/githome" "$WORK/xdg/git" "$WORK/caller-bad-xdg/git"
+printf '[core\n\tbroken = true\n' >"$WORK/caller-bad-xdg/git/config"
+printf '[core\n\tbroken = true\n' >"$WORK/caller-bad-xdg/.gitconfig"
+if (
+  (
+    while IFS='=' read -r k _; do
+      case "$k" in GIT_*) unset "$k" ;; esac
+    done < <(env)
+    export HOME="$WORK/githome" XDG_CONFIG_HOME="$WORK/xdg" GIT_CONFIG_NOSYSTEM=1
+    git -c init.defaultBranch=main -C "$WORK" init -q gitrepo &&
+    git -C "$WORK/gitrepo" config user.email "test@example.invalid" &&
+    git -C "$WORK/gitrepo" config user.name "Test" &&
+    git -C "$WORK/gitrepo" config commit.gpgsign false &&
+    git -C "$WORK/gitrepo" config uploadpack.allowFilter true &&
+    git -C "$WORK/gitrepo" config uploadpack.allowAnySHA1InWant true &&
+    printf '## Core Rules\n\n%s\n  - %s\n' "$HOST_A" "$OBLIGATION" >"$WORK/gitrepo/doc.md" &&
+    git -C "$WORK/gitrepo" add doc.md &&
+    git -C "$WORK/gitrepo" -c core.hooksPath=/dev/null commit -q -m "base" &&
+    printf '## Core Rules\n\n%s\n' "$HOST_A" >"$WORK/gitrepo/doc.md" &&
+    git -C "$WORK/gitrepo" add doc.md &&
+    git -C "$WORK/gitrepo" -c core.hooksPath=/dev/null commit -q -m "drop" &&
+    git -C "$WORK/gitrepo" replace -f HEAD HEAD~1 &&
+    git clone -q --no-checkout --filter=blob:none "file://$WORK/gitrepo" "$WORK/partial-repo"
+  )
+); then
+  rev_out="$(HOME="$WORK/caller-bad-xdg" XDG_CONFIG_HOME="$WORK/caller-bad-xdg" \
+    GIT_DIR="$WORK/poison-git-dir" GIT_WORK_TREE="$WORK/poison-wt" \
+    GIT_INDEX_FILE="$WORK/poison.idx" GIT_CONFIG_PARAMETERS="'core.worktree=/nonexistent'" \
+    GIT_TRACE="$WORK/poison-trace.log" \
+    python3 "$TOOL" --repo "$WORK/gitrepo" --rev HEAD~1 HEAD doc.md 2>&1)"
+  rev_rc=$?
+  if [ "$rev_rc" -eq 1 ] && [ ! -e "$WORK/poison-trace.log" ] && grep -q '^derived row set: 1$' <<<"$rev_out"; then
+    printf 'PASS %s\n' "git: --rev isolates XDG/HOME, scrubs GIT_* (incl. GIT_TRACE), & ignores replace refs"
+    pass=$((pass + 1))
+  else
+    printf 'FAIL %-46s rc=%s out=%s\n' "git: --rev isolates XDG/HOME, scrubs GIT_* (incl. GIT_TRACE), & ignores replace refs" "$rev_rc" "$rev_out"
+    fail=$((fail + 1))
+  fi
+
+  cat >"$WORK/spy-upload-pack.sh" <<EOF
+#!/usr/bin/env bash
+: > "$WORK/lazy-fetched.marker"
+exec git-upload-pack "\$@"
+EOF
+  chmod +x "$WORK/spy-upload-pack.sh"
+  cp -R "$WORK/partial-repo" "$WORK/partial-positive"
+  git -C "$WORK/partial-positive" config remote.origin.uploadpack "$WORK/spy-upload-pack.sh"
+  pos_out="$(python3 - "$TOOL" "$WORK/partial-positive" 2>&1 <<'PYEOF'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("gcd", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+sys.modules["gcd"] = mod
+spec.loader.exec_module(mod)
+orig_env = mod._git_clean_env
+def env_without_lazy_guard():
+    env = orig_env()
+    env["GIT_NO_LAZY_FETCH"] = "0"
+    return env
+mod._git_clean_env = env_without_lazy_guard
+raise SystemExit(mod.main(["--repo", sys.argv[2], "--rev", "HEAD~1", "HEAD", "doc.md"]))
+PYEOF
+)"
+  pos_rc=$?
+  pos_marker="absent"
+  [ -e "$WORK/lazy-fetched.marker" ] && pos_marker="present"
+  rm -f "$WORK/lazy-fetched.marker"
+  git -C "$WORK/partial-repo" config remote.origin.uploadpack "$WORK/spy-upload-pack.sh"
+  partial_out="$(GIT_NO_LAZY_FETCH=0 python3 "$TOOL" --repo "$WORK/partial-repo" --rev HEAD~1 HEAD doc.md 2>&1)"
+  partial_rc=$?
+  if [ "$pos_rc" -eq 1 ] && [ "$pos_marker" = "present" ] && grep -q '^derived row set: 1$' <<<"$pos_out" && [ "$partial_rc" -eq 2 ] && [ ! -e "$WORK/lazy-fetched.marker" ] && grep -q 'cannot read HEAD~1:doc.md' <<<"$partial_out"; then
+    printf 'PASS %s\n' "git: --rev enforces GIT_NO_LAZY_FETCH=1 on promisor missing blobs (paired read_rev spy verified on $(git --version))"
+    pass=$((pass + 1))
+  else
+    printf 'FAIL %-46s pos_rc=%s pos_marker=%s pos_out=%s rc=%s marker=%s out=%s\n' "git: --rev enforces GIT_NO_LAZY_FETCH=1 on promisor missing blobs" "$pos_rc" "$pos_marker" "$pos_out" "$partial_rc" "$([ -e "$WORK/lazy-fetched.marker" ] && echo present || echo absent)" "$partial_out"
+    fail=$((fail + 1))
+  fi
+else
+  printf 'FAIL %s\n' "git fixture setup failed"
+  fail=$((fail + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# 17. Anchor self-check: prove the harness can actually fail. A deliberately
 #     wrong expectation must be reported as FAIL, otherwise every PASS above is
 #     evidence of nothing. Run in a subshell so the real counters stay clean.
 # ---------------------------------------------------------------------------

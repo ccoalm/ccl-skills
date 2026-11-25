@@ -24,13 +24,53 @@ check(){ if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "期望 $3，实得 $2"
 # ---- 块清单：每个可运行片段必须**显式**声明是被执行还是被豁免 ----
 # 硬编码 sh[0]/py[0] 的老做法会让新加的可运行块悄悄不被覆盖（评审 P2）。
 # 这里按内容指纹认块；出现未登记的块就红，逼作者要么覆盖它、要么写明为何不可执行。
+EXPECTED_MANIFEST_IDS="fetch/accept,curl-size-log,curl-fail-log,cdx,catalog,paging,pdf-probe,pdf-render,alias-parse,col-attrib,ocr,tag-fallback"
 cat > "$WORK/check-block-manifest.py" <<'PY'
-import re,sys
+import os,re,sys
 doc,work=sys.argv[1],sys.argv[2]
-t=open(doc,encoding='utf-8').read()
-# 枚举所有 fence，而不是只枚举认识的语言；新标签/无标签块也必须进入处置。
-blocks=[(m.group(1).strip(),m.group(2))
-        for m in re.finditer(r'^```([^\n]*)\n(.*?)^```[ \t]*$',t,re.S|re.M)]
+expected_ids=[s for s in os.environ.get("EXPECTED_MANIFEST_IDS","").split(",") if s]
+# utf-8-sig：CommonMark 渲染器会跳过开头的 BOM，保留它会让首行 fence 逃过开头判断。
+t=open(doc,encoding='utf-8-sig').read()
+# 承载文档格式收窄，而不是解析 CommonMark 容器：可运行块只能是第 0 列开头的根级 fence。
+# 其它任何位置的类 fence 行（引用块、列表、缩进、fence 体内的嵌套开头）或未闭合 fence 都让检查失败。
+# 每个真实 fence 都有一行开头，它要么进入块清单，要么触发失败，所以不存在静默漏登记；
+# 代价是作者不能在这份文档里嵌套或缩进 fence（当前文档没有）。
+blocks=[]
+layout_errors=[]
+_prefix=re.compile(r'^(?:[ \t]*(?:>|[-*+](?=[ \t]|$)|\d{1,9}[.)](?=[ \t]|$)))*[ \t]*')
+_run=re.compile(r'(`{3,}|~{3,})(.*)$')
+def _opener(s):
+    m=_run.match(s)
+    # 反引号 fence 的 info 不能含反引号，否则是行内代码（CommonMark §4.5）。
+    if m and not (m.group(1)[0]=='`' and '`' in m.group(2)):
+        return m
+    return None
+def _fence_like(s):
+    return _opener(s[_prefix.match(s).end():]) is not None
+_open=None
+# 只按 LF 切行：open() 已把 CR/CRLF 归一成 LF，而 str.splitlines() 还会在 U+2028 等字符处断行，
+# CommonMark 不把它们当行尾，会让扫描器与渲染器对行边界的判断分叉。
+for _no,_ln in enumerate(t.split('\n'),1):
+    if _open is not None:
+        _ch,_n,_lang,_buf,_start=_open
+        if re.fullmatch(' {0,3}'+re.escape(_ch)+'{'+str(_n)+',}[ \\t]*',_ln):
+            blocks.append((_lang,''.join(_buf))); _open=None
+        elif _fence_like(_ln):
+            layout_errors.append(f"第 {_no} 行（第 {_start} 行起的 fence 体内）: {_ln[:70]}")
+        else:
+            _buf.append(_ln+'\n')
+        continue
+    _m=_opener(_ln)
+    if _m:
+        _open=(_m.group(1)[0],len(_m.group(1)),_m.group(2).strip(),[],_no)
+    elif _fence_like(_ln):
+        layout_errors.append(f"第 {_no} 行: {_ln[:70]}")
+if _open is not None:
+    layout_errors.append(f"第 {_open[4]} 行起的 fence 未闭合")
+if layout_errors:
+    print("承载文档格式不合规：可运行块只能是第 0 列的根级 fence，不得缩进、嵌套或放进引用块/列表：")
+    for e in layout_errors: print(f"   {e}")
+    sys.exit(1)
 
 # 每项：(标识, 判据, 处置)。exec=本测试真的执行它；exempt=写明为何不执行。
 MANIFEST=[
@@ -47,6 +87,9 @@ MANIFEST=[
  ("ocr",           lambda l,b: l=='swift' and 'VNRecognizeTextRequest' in b,    "exempt: 需 macOS Vision + swiftc，另行手测"),
  ("tag-fallback",  lambda l,b: l=='javascript' and 'concept(t)' in b,           "exempt: 需真实结构化接口"),
 ]
+manifest_ids=[name for name,_,_ in MANIFEST]
+if not expected_ids or manifest_ids != expected_ids:
+    print(f"MANIFEST 登记集缺失或与独立基线不一致: {manifest_ids} != {expected_ids}"); sys.exit(1)
 unmatched=[]
 for lang,body in blocks:
     if not any(pred(lang,body) for _,pred,_ in MANIFEST):
@@ -55,38 +98,236 @@ if unmatched:
     print("未登记的可运行块（要么覆盖它，要么在 MANIFEST 里写明豁免理由）：")
     for lang,head in unmatched: print(f"   [{lang}] {head}")
     sys.exit(1)
-# 抽出要执行的块
+# 核验全部已登记块（含 exempt 块）与文档代码块的一一对应关系，防止静默同删或多重命中
+claimed={}
 for name,pred,how in MANIFEST:
+    hit_idxs=[idx for idx,(l,b) in enumerate(blocks) if pred(l,b)]
+    if len(hit_idxs)!=1:
+        print(f"块 {name} 命中 {len(hit_idxs)} 个，判据需更新"); sys.exit(1)
+    b_idx=hit_idxs[0]
+    if b_idx in claimed:
+        print(f"块 #{b_idx} 同时被 {claimed[b_idx]} 与 {name} 认领"); sys.exit(1)
+    claimed[b_idx]=name
     if how!="exec": continue
-    hit=[b for l,b in blocks if pred(l,b)]
-    if len(hit)!=1:
-        print(f"块 {name} 命中 {len(hit)} 个，判据需更新"); sys.exit(1)
     ext="py" if name=="alias-parse" else "sh"
-    open(f"{work}/{name.replace('/','_')}.{ext}","w").write(hit[0])
+    open(f"{work}/{name.replace('/','_')}.{ext}","w").write(blocks[b_idx][1])
+if len(claimed)!=len(blocks):
+    print(f"块计数不一致: claimed={len(claimed)} blocks={len(blocks)}"); sys.exit(1)
 print(f"块清单：共 {len(blocks)} 个，执行 {sum(1 for _,_,h in MANIFEST if h=='exec')} 类，其余已登记豁免")
 PY
-python3 "$WORK/check-block-manifest.py" "$DOC" "$WORK"
+EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$DOC" "$WORK"
 [ $? -eq 0 ] || { echo "块清单校验失败" >&2; exit 1; }
 mkdir -p "$WORK/negative-extract"
-cat > "$WORK/unregistered-block.md" <<'BAD'
-```bash
-echo "unregistered"
-```
+cp "$DOC" "$WORK/unregistered-block.md"
+cat >> "$WORK/unregistered-block.md" <<'BAD'
+
+~~~bash
+echo "unregistered tilde block"
+~~~
 BAD
-if python3 "$WORK/check-block-manifest.py" "$WORK/unregistered-block.md" "$WORK/negative-extract" >/dev/null 2>&1; then
-  bad "块清单能报未登记代码块" "坏输入被放行"
-else
+unreg_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/unregistered-block.md" "$WORK/negative-extract" 2>&1)
+unreg_rc=$?
+if [ "$unreg_rc" -eq 1 ] && grep -qF "未登记的可运行块" <<<"$unreg_out"; then
   ok "块清单能报未登记代码块"
+else
+  bad "块清单能报未登记代码块" "rc=$unreg_rc out=$unreg_out"
 fi
-cat > "$WORK/unknown-fence.md" <<'BAD'
+cp "$DOC" "$WORK/unknown-fence.md"
+cat >> "$WORK/unknown-fence.md" <<'BAD'
+
 ```sh
-echo "unknown language tag"
+echo "root unknown language tag"
 ```
 BAD
-if python3 "$WORK/check-block-manifest.py" "$WORK/unknown-fence.md" "$WORK/negative-extract" >/dev/null 2>&1; then
-  bad "块清单能报未知 fence 标签" "未知标签被忽略"
-else
+unk_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/unknown-fence.md" "$WORK/negative-extract" 2>&1)
+unk_rc=$?
+if [ "$unk_rc" -eq 1 ] && grep -qF '[sh] echo "root unknown language tag"' <<<"$unk_out"; then
   ok "块清单能报未知 fence 标签"
+else
+  bad "块清单能报未知 fence 标签" "rc=$unk_rc out=$unk_out"
+fi
+# 格式收窄负例：非根级、嵌套或未闭合的类 fence 行都必须以格式诊断失败，并点名触发行。
+# 这里不区分 CommonMark 是否真把它当 fence（缩进代码、HTML 注释后续行等），一律拒绝。
+layout_case(){ # $1=夹具名 $2=断言名 $3=诊断中必须出现的片段；追加正文从 stdin 读
+  cp "$DOC" "$WORK/$1.md"; cat >> "$WORK/$1.md"
+  local out rc
+  out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/$1.md" "$WORK/negative-extract" 2>&1); rc=$?
+  if [ "$rc" -eq 1 ] && grep -qF "承载文档格式不合规" <<<"$out" && grep -qF -- "$3" <<<"$out"; then
+    ok "$2"
+  else
+    bad "$2" "rc=$rc out=$out"
+  fi
+}
+layout_case indented-fence "块清单拒绝 1-3 空格缩进的 fence" ':   ```sh' <<'BAD'
+
+  ```sh
+  echo "indented unknown language tag"
+  ```
+BAD
+layout_case quoted-fence "块清单拒绝引用块内 fence" ': > ```bash' <<'BAD'
+
+> ```bash
+> echo "unregistered quoted fence"
+> ```
+BAD
+layout_case list-marker-fence "块清单拒绝列表标记行 fence" ': - ```bash' <<'BAD'
+
+- ```bash
+  echo "unregistered marker-line fence"
+  ```
+BAD
+layout_case ordered-marker-fence "块清单拒绝有序列表标记行 fence" ': 100. ```bash' <<'BAD'
+
+100. ```bash
+     echo "unregistered ordered-marker-line fence"
+     ```
+BAD
+layout_case list-continuation-fence "块清单拒绝有序列表续行 fence" ':      ```bash' <<'BAD'
+
+100. Instructions
+
+     ```bash
+     echo "unregistered ordered-list continuation fence"
+     ```
+BAD
+layout_case list-dedent-fence "块清单拒绝缩进回退才闭合的列表 fence" ':      ```bash' <<'BAD'
+
+100. Instructions
+
+     ```bash
+     echo "unclosed continuation fence closed by dedent"
+Outside paragraph closes the list-nested fence.
+BAD
+layout_case root-indented-fence "块清单拒绝 4 空格根级缩进的类 fence 行" ':     ```bash' <<'BAD'
+
+    ```bash
+    echo "4-space root indented fence lookalike"
+    ```
+BAD
+layout_case html-comment-list-fence "块清单拒绝 HTML 注释后列表续行 fence" ':      ```bash' <<'BAD'
+
+<!-- note -->
+100. Instructions
+
+     ```bash
+     echo "fence after html comment"
+     ```
+BAD
+# 用进程替换喂输入而不是管道：管道会把 layout_case 放进子 shell，ok/bad 计数随之丢失。
+layout_case tab-heading-fence "块清单拒绝制表符标题近似后的缩进 fence" ':      ```bash' \
+  < <(printf '\nOrdinary text\n\t# heading-like text\n100.\n\n     ```bash\n     echo "tab heading near miss"\n     ```\n')
+# U+2028 不是 CommonMark 行尾：整行是段落，下面的 ``` 才是真开头，体内的 ```bash 必须报嵌套。
+layout_case u2028-line-separator "块清单不在 U+2028 处断行" 'fence 体内）: ```bash' \
+  < <(printf '\nOrdinary prose\342\200\250```bash\necho phantom\n```\n```bash\necho "real fence after u2028 phantom"\n```\n')
+# 开头 BOM 后紧跟的 fence 会被渲染器当成真开头并吞到 EOF，必须报错而不是沿用原清单。
+# 自包含夹具，不依赖真实文档里有没有更长的 ~ 闭合行。
+printf '\357\273\277~~~bash\necho "bom unclosed fence"\n' > "$WORK/bom-fence.md"
+bom_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/bom-fence.md" "$WORK/negative-extract" 2>&1)
+bom_rc=$?
+if [ "$bom_rc" -eq 1 ] && grep -qF "承载文档格式不合规" <<<"$bom_out" && grep -qF "第 1 行起的 fence 未闭合" <<<"$bom_out"; then
+  ok "块清单识别 BOM 后的首行 fence"
+else
+  bad "块清单识别 BOM 后的首行 fence" "rc=$bom_rc out=$bom_out"
+fi
+# 闭合但未登记的 BOM 首行 fence 走块清单校验，必须按未登记块失败。
+{ printf '\357\273\277~~~bash\necho "bom closed unregistered fence"\n~~~\n'; cat "$DOC"; } > "$WORK/bom-closed-fence.md"
+bomc_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/bom-closed-fence.md" "$WORK/negative-extract" 2>&1)
+bomc_rc=$?
+if [ "$bomc_rc" -eq 1 ] && grep -qF '[bash] echo "bom closed unregistered fence"' <<<"$bomc_out"; then
+  ok "块清单报 BOM 后已闭合的未登记 fence"
+else
+  bad "块清单报 BOM 后已闭合的未登记 fence" "rc=$bomc_rc out=$bomc_out"
+fi
+layout_case comment-swallow-fence "块清单拒绝根级 fence 体内的嵌套开头行" 'fence 体内）: ```bash' <<'BAD'
+
+<!--
+```
+-->
+```bash
+echo "fence hidden behind a comment-swallowed phantom block"
+```
+BAD
+layout_case tilde-in-backtick-fence "块清单拒绝反引号 fence 体内的波浪线 fence" 'fence 体内）: ~~~' <<'BAD'
+
+```bash
+~~~
+echo "nested tilde fence"
+~~~
+```
+BAD
+layout_case unclosed-root-fence "块清单拒绝未闭合的根级 fence" 'fence 未闭合' <<'BAD'
+
+```bash
+echo "unclosed root fence reaches EOF"
+BAD
+cp "$DOC" "$WORK/inline-span-control.md"
+cat >> "$WORK/inline-span-control.md" <<'GOOD'
+
+```inline``` at line start is a code span, not a fence.
+- ```list item``` inline span stays prose.
+> ```quoted``` inline span stays prose.
+GOOD
+mkdir -p "$WORK/inline-extract"
+is_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/inline-span-control.md" "$WORK/inline-extract" 2>&1)
+is_rc=$?
+if [ "$is_rc" -eq 0 ] && grep -qF "块清单：共 12 个" <<<"$is_out"; then
+  ok "块清单不把行首行内代码当 fence"
+else
+  bad "块清单不把行首行内代码当 fence" "rc=$is_rc out=$is_out"
+fi
+empty_inv_out=$(EXPECTED_MANIFEST_IDS="" python3 "$WORK/check-block-manifest.py" "$DOC" "$WORK/negative-extract" 2>&1)
+empty_inv_rc=$?
+if [ "$empty_inv_rc" -eq 1 ] && grep -qF "MANIFEST 登记集缺失或与独立基线不一致" <<<"$empty_inv_out"; then
+  ok "块清单缺少独立基线时必须失败"
+else
+  bad "块清单缺少独立基线时必须失败" "rc=$empty_inv_rc out=$empty_inv_out"
+fi
+python3 - "$DOC" "$WORK/missing-exempt.md" <<'PY'
+import re, sys
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src, encoding="utf-8").read()
+stripped, n = re.subn(r'^```python\n[^\n]*totA.*?^```[ \t]*\n', '', text, count=1, flags=re.S | re.M)
+assert n == 1, f"expected 1 totA block, got {n}"
+open(dst, "w", encoding="utf-8").write(stripped)
+PY
+mkdir -p "$WORK/positive-extract"
+if EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$DOC" "$WORK/positive-extract" >/dev/null 2>&1; then
+  ok "块清单正例抽取目录对照通过"
+else
+  bad "块清单正例抽取目录对照通过" "正例失败"
+fi
+miss_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/missing-exempt.md" "$WORK/negative-extract" 2>&1)
+miss_rc=$?
+if [ "$miss_rc" -eq 1 ] && grep -qF "块 col-attrib 命中 0 个" <<<"$miss_out"; then
+  ok "块清单能报缺失的已登记豁免块"
+else
+  bad "块清单能报缺失的已登记豁免块" "rc=$miss_rc out=$miss_out"
+fi
+python3 - "$DOC" "$WORK/check-block-manifest.py" "$WORK/codeleted-doc.md" "$WORK/codeleted-checker.py" <<'PY'
+import re, sys
+doc_src, chk_src, doc_dst, chk_dst = sys.argv[1:5]
+doc_text = open(doc_src, encoding="utf-8").read()
+n1 = 0
+def _drop_pdf_probe(m):
+    global n1
+    if m.group(1).strip() == "bash" and "pdftotext" in m.group(2):
+        n1 += 1
+        return ""
+    return m.group(0)
+stripped_doc = re.sub(r'^```([^\n]*)\n(.*?)^```[ \t]*\n', _drop_pdf_probe, doc_text, flags=re.S | re.M)
+assert n1 == 1, f"expected 1 pdf-probe block, got {n1}"
+open(doc_dst, "w", encoding="utf-8").write(stripped_doc)
+chk_text = open(chk_src, encoding="utf-8").read()
+stripped_chk, n2 = re.subn(r'^\s*\("pdf-probe",.*?\),\n', '', chk_text, count=1, flags=re.M)
+assert n2 == 1, f"expected 1 pdf-probe manifest row, got {n2}"
+open(chk_dst, "w", encoding="utf-8").write(stripped_chk)
+PY
+codel_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/codeleted-checker.py" "$WORK/codeleted-doc.md" "$WORK/negative-extract" 2>&1)
+codel_rc=$?
+if [ "$codel_rc" -eq 1 ] && grep -qF "MANIFEST 登记集缺失或与独立基线不一致" <<<"$codel_out"; then
+  ok "块清单能报代码块与登记项同时被删"
+else
+  bad "块清单能报代码块与登记项同时被删" "rc=$codel_rc out=$codel_out"
 fi
 cp "$WORK/fetch_accept.sh" "$WORK/fetch.sh" 2>/dev/null || { echo "抽取 fetch 块失败" >&2; exit 1; }
 cp "$WORK/alias-parse.py" "$WORK/parse.py" 2>/dev/null || { echo "抽取 ALIAS 块失败" >&2; exit 1; }
@@ -164,6 +405,7 @@ case "$url" in
   *oversize*) printf '%s\n' '[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]' > "$out" ;;
   *slowA*)    sleep 1; printf '{"who":"A"}' > "$out" ;;
   *slowB*)    sleep 1; printf '{"who":"B"}' > "$out" ;;
+  *mkdirduring*) [ -z "${CURL_MKDIR_TARGET:-}" ] || mkdir -p "$CURL_MKDIR_TARGET"; printf '{"ok":true}' > "$out" ;;
   *)          printf '{"ok":true}' > "$out" ;;
 esac
 exit 0
@@ -202,7 +444,112 @@ check "空响应原因匹配"        "$(grep -Fq '空响应' "$WORK/empty.log" &
 mkdir -p "$WORK/run/adir" && : > "$WORK/run/adir/keep"
 check "目标是目录返回 2"      "$(run_fetch "$WORK/run/adir" 'https://x/data')"       2
 check "目录内容未被动"        "$([ -e "$WORK/run/adir/keep" ] && echo kept || echo GONE)" kept
-check "无 .part 残留"         "$(find "$WORK/run" -name '*.part.*' | wc -l | tr -d ' ')" 0
+printf '{"external":true}' > "$WORK/ext-target.json"
+ln -s "$WORK/ext-target.json" "$WORK/run/live-link.json"
+check "目标是有效符号链接返回 2" "$(FETCH_LOG="$WORK/live-link.log" run_fetch "$WORK/run/live-link.json" 'https://x/data')" 2
+check "有效符号链接目标未被动" "$(cat "$WORK/ext-target.json")" '{"external":true}'
+ln -s "$WORK/no-such-target.json" "$WORK/run/dangling-link.json"
+check "目标是悬空符号链接返回 2" "$(FETCH_LOG="$WORK/dangling-link.log" run_fetch "$WORK/run/dangling-link.json" 'https://x/data')" 2
+check "悬空符号链接未创建目标" "$([ -e "$WORK/no-such-target.json" ] && echo created || echo absent)" absent
+mkdir -p "$WORK/ext-parent-dir"
+printf '{"cached_outside":true}\n' > "$WORK/ext-parent-dir/cached.json"
+ln -s "$WORK/ext-parent-dir" "$WORK/run/parent-link"
+check "中间父目录符号链接(既有文件)返回 2" "$(FETCH_LOG="$WORK/parent-link-cached.log" run_fetch "$WORK/run/parent-link/cached.json" 'https://x/data')" 2
+check "中间父目录符号链接(新文件)返回 2" "$(FETCH_LOG="$WORK/parent-link-new.log" run_fetch "$WORK/run/parent-link/new.json" 'https://x/data')" 2
+check "中间父目录符号链接未向外部目录写文件" "$([ -e "$WORK/ext-parent-dir/new.json" ] && echo created || echo untouched)" untouched
+mkdir -p "$WORK/run/a" "$WORK/run/real_sub/sub"
+ln -s "$WORK/run/real_sub" "$WORK/run/a/in_link"
+check "OUT 内深层目录符号链接返回 2" "$(FETCH_LOG="$WORK/in-link.log" run_fetch "$WORK/run/a/in_link/sub/f.json" 'https://x/data')" 2
+check "OUT 内深层目录符号链接未写文件" "$([ -e "$WORK/run/real_sub/sub/f.json" ] && echo created || echo untouched)" untouched
+mkdir -p "$WORK/ext-outer/nested"
+ln -s "$WORK/ext-outer/nested" "$WORK/run/deep-link"
+check "link/.. 跨越符号链接返回 2" "$(FETCH_LOG="$WORK/link-dotdot.log" run_fetch "$WORK/run/deep-link/../escape.json" 'https://x/data')" 2
+check "link/.. 未向外部父目录写文件" "$([ -e "$WORK/ext-outer/escape.json" ] && echo created || echo untouched)" untouched
+nl_sib="$WORK/run"$'\n'
+mkdir -p "$nl_sib"
+check "含换行符的目标路径返回 2" "$(FETCH_LOG="$WORK/nl-path.log" run_fetch "$nl_sib/evil.json" 'https://x/data')" 2
+check "含换行符兄弟目录未写文件" "$([ -e "$nl_sib/evil.json" ] && echo created || echo untouched)" untouched
+check "越出 OUT 的路径返回 2" "$(FETCH_LOG="$WORK/outside-out.log" run_fetch "$WORK/outside.json" 'https://x/data')" 2
+check "越出 OUT 的路径未写文件" "$([ -e "$WORK/outside.json" ] && echo created || echo absent)" absent
+mkdir -p "$WORK/cdpath-decoy/data/sub" "$WORK/cdpath-work/data/sub"
+rc_cdpath=$( export PATH="$WORK/bin:$PATH" UA="t t@example.invalid" CDPATH="$WORK/cdpath-decoy"
+             cd "$WORK/cdpath-work" || exit 9
+             # shellcheck disable=SC1090
+             . "$WORK/fetch.sh" >/dev/null 2>&1
+             OUT=data; export OUT
+             fetch "data/sub/bare.json" 'https://x/data' >/dev/null 2>&1 || exit 81
+             OUT=./data; export OUT
+             fetch "data/sub/rel.json" 'https://x/data' >/dev/null 2>&1 &&
+             fetch "./data/sub/rel2.json" 'https://x/data' >/dev/null 2>&1
+             echo $? )
+check "CDPATH 下 OUT=data 与 OUT=./data 均返回 0" "$rc_cdpath" 0
+check "CDPATH 工作目录写入 bare.json" "$([ -f "$WORK/cdpath-work/data/sub/bare.json" ] && echo present || echo missing)" present
+check "CDPATH 诱饵目录未被写入" "$([ -e "$WORK/cdpath-decoy/data/sub/bare.json" ] || [ -e "$WORK/cdpath-decoy/data/sub/rel.json" ] && echo leaked || echo clean)" clean
+rc_unset=$( set -u
+            export PATH="$WORK/bin:$PATH" UA="t t@example.invalid"
+            cd "$WORK/cdpath-work/data" || exit 9
+            # shellcheck disable=SC1090
+            . "$WORK/fetch.sh" >/dev/null 2>&1
+            unset OUT
+            fetch "unset-ok.json" 'https://x/data' >/dev/null 2>&1 || exit 91
+            fetch "$WORK/outside-unset.json" 'https://x/data' >/dev/null 2>&1 && exit 92
+            OUT="" fetch "$WORK/outside-empty.json" 'https://x/data' >/dev/null 2>&1 && exit 93
+            echo 0 )
+check "set -u 下 unset/空 OUT 默认当前目录且拦外部路径" "$rc_unset" 0
+REAL_PY_BIN=$(command -v python3)
+REAL_LN_BIN=$(command -v ln)
+mkdir -p "$WORK/race-bin"
+cat > "$WORK/race-bin/python3" <<'SHIM'
+#!/usr/bin/env bash
+if [ -n "${RACE_TARGET:-}" ] && [ "${1:-}" = "-c" ] && [ "${4:-}" = "$RACE_TARGET" ]; then
+  if [ "${RACE_KIND:-}" = "dir" ]; then
+    mkdir -p -- "$RACE_TARGET" && : > "$RACE_MARKER"
+  elif [ "${RACE_KIND:-}" = "dirlink" ]; then
+    "$REAL_LN_BIN" -s -- "$RACE_LINK_DST" "$RACE_TARGET" && : > "$RACE_MARKER"
+  fi
+fi
+exec "$REAL_PY_BIN" "$@"
+SHIM
+cat > "$WORK/race-bin/ln" <<'SHIM'
+#!/usr/bin/env bash
+last_arg=""
+for arg in "$@"; do last_arg=$arg; done
+if [ -n "${RACE_TARGET:-}" ] && [ "$last_arg" = "$RACE_TARGET" ]; then
+  if [ "${RACE_KIND:-}" = "dir" ]; then
+    mkdir -p -- "$RACE_TARGET" && : > "$RACE_MARKER"
+  elif [ "${RACE_KIND:-}" = "dirlink" ]; then
+    "$REAL_LN_BIN" -s -- "$RACE_LINK_DST" "$RACE_TARGET" && : > "$RACE_MARKER"
+  fi
+fi
+exec "$REAL_LN_BIN" "$@"
+SHIM
+chmod +x "$WORK/race-bin/python3" "$WORK/race-bin/ln"
+rc_dirrace=$( export PATH="$WORK/race-bin:$WORK/bin:$PATH" UA="t t@example.invalid"
+              export REAL_PY_BIN REAL_LN_BIN RACE_KIND="dir" RACE_TARGET="$WORK/run/became-dir" RACE_MARKER="$WORK/race-dir.injected"
+              cd "$WORK/run" || exit 9
+              # shellcheck disable=SC1090
+              . "$WORK/fetch.sh" >/dev/null 2>&1
+              OUT=$PWD; export OUT
+              fetch "$WORK/run/became-dir" 'https://x/data' >/dev/null 2>&1
+              rc=$?
+              printf '%s:%s\n' "$rc" "$FETCHED" )
+check "发布入口目录竞态注入已触发" "$([ -e "$WORK/race-dir.injected" ] && echo injected || echo missed)" injected
+check "链接边界目标变为目录时返回 2 且 FETCHED=0" "$rc_dirrace" "2:0"
+check "链接边界新建目录内未被链入 .part" "$(find "$WORK/run/became-dir" -mindepth 1 | wc -l | tr -d ' ')" 0
+mkdir -p "$WORK/ext-linkdir"
+rc_dirlink=$( export PATH="$WORK/race-bin:$WORK/bin:$PATH" UA="t t@example.invalid"
+              export REAL_PY_BIN REAL_LN_BIN RACE_KIND="dirlink" RACE_TARGET="$WORK/run/became-dirlink" RACE_LINK_DST="$WORK/ext-linkdir" RACE_MARKER="$WORK/race-link.injected"
+              cd "$WORK/run" || exit 9
+              # shellcheck disable=SC1090
+              . "$WORK/fetch.sh" >/dev/null 2>&1
+              OUT=$PWD; export OUT
+              fetch "$WORK/run/became-dirlink" 'https://x/data' >/dev/null 2>&1
+              rc=$?
+              printf '%s:%s\n' "$rc" "$FETCHED" )
+check "发布入口目录符号链接竞态注入已触发" "$([ -e "$WORK/race-link.injected" ] && echo injected || echo missed)" injected
+check "链接边界目标变为目录符号链接时返回 2 且 FETCHED=0" "$rc_dirlink" "2:0"
+check "链接边界目录符号链接目标未被链入 .part" "$(find "$WORK/ext-linkdir" -mindepth 1 | wc -l | tr -d ' ')" 0
+check "无 .part 残留"         "$(find "$WORK/run" "$WORK/ext-parent-dir" -name '*.part.*' | wc -l | tr -d ' ')" 0
 
 run_fetch_smallcap() {  # 把 MAX_BYTES 压到很小，用来触发体积上限分支
   local log=${FETCH_LOG:-/dev/null}
@@ -277,6 +624,7 @@ echo "== 分页循环：解析失败必须非零终止，不得空转（评审 P
 # 只跑 sh[0] 会漏掉这一块——分页块里 N=$(...) 失败时 OFF 不前进，会反复读同一页。
 cat > "$WORK/pagerun.sh" <<'SH'
 set -euo pipefail
+export PATH="$WORKDIR/bin:$PATH"
 UA="t t@example.invalid"; OUT=$PWD; export UA OUT
 DOMAIN=example.invalid; ID=ds; PAGE=2
 # shellcheck disable=SC1090

@@ -28,6 +28,7 @@ Exit status:
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -35,12 +36,28 @@ from dataclasses import dataclass
 
 # A heading line: capture level and text.
 _HEADING = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
-# A list item: capture indent width, and the text after the bullet/number marker.
-_LIST_ITEM = re.compile(r"^(\s*)(?:[-*+]|\d+[.)])\s+(.*\S)\s*$")
+# CommonMark §4.1 thematic break (`---`, `***`, `___` with 0..3 spaces relative to container).
+_THEMATIC_BREAK = re.compile(
+    r"^([ \t]*)(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})\r?$"
+)
+# A list item: capture leading indent and optional first-line body text.
+_LIST_ITEM = re.compile(r"^([ \t]*)(?:[-*+]|\d+[.)])(?:[ \t]+(.*\S))?[ \t]*\r?$")
 # A markdown table row (leading pipe); these are data rows, not prose obligations.
 _TABLE_ROW = re.compile(r"^\s*\|")
-# A fenced code block delimiter.
-_FENCE = re.compile(r"^\s*(?:```|~~~)")
+# CommonMark §4.5 fenced code block opener (0..3 cols relative to container; 3+ ` or ~).
+_FENCE_OPEN = re.compile(r"^([ \t]*)(`{3,}|~{3,})([^\r\n]*)$")
+
+def _git_clean_env() -> dict[str, str]:
+    clean = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    clean["GIT_NO_LAZY_FETCH"] = "1"
+    clean["GIT_CONFIG_GLOBAL"] = os.devnull
+    clean["GIT_CONFIG_SYSTEM"] = os.devnull
+    return clean
+
+
+def _is_blank_line(raw: str) -> bool:
+    """CommonMark §2.1 blank line: only ASCII spaces (0x20) and tabs (0x09)."""
+    return not raw.strip(" \t\r")
 
 
 def normalize(text: str) -> str:
@@ -139,17 +156,20 @@ def parse(source: str, *, min_chars: int = 25) -> list[Obligation]:
     """
     obligations: list[Obligation] = []
     headings: list[tuple[int, str]] = []  # (level, content_key)
-    list_stack: list[tuple[int, str]] = []  # (indent, content_key)
+    list_stack: list[tuple[int, int, str]] = []  # (marker_indent, content_indent, content_key)
     paragraph: list[str] = []
-    in_fence = False
+    fence_closer: re.Pattern[str] | None = None
+    fence_container_indent = 0
+    fence_max_indent = 3
     # A list item may wrap across several lines. Its continuation lines belong to
     # the item, not to a following paragraph — folding them in is what makes a
     # cosmetic rewrap compare equal instead of reading as a rewritten line.
     pending_item: list[str] | None = None
     pending_indent = 0
+    pending_content_indent = 0
 
     def chain_now() -> tuple[str, ...]:
-        return tuple([key for _, key in headings] + [key for _, key in list_stack])
+        return tuple([key for _, key in headings] + [key for _, _, key in list_stack])
 
     def flush_item() -> None:
         nonlocal pending_item
@@ -157,7 +177,7 @@ def parse(source: str, *, min_chars: int = 25) -> list[Obligation]:
             return
         text = " ".join(pending_item)
         obligations.extend(split_obligations(text, chain_now(), min_chars))
-        list_stack.append((pending_indent, content_key(text)))
+        list_stack.append((pending_indent, pending_content_indent, content_key(text)))
         pending_item = None
 
     def flush_paragraph() -> None:
@@ -168,15 +188,40 @@ def parse(source: str, *, min_chars: int = 25) -> list[Obligation]:
         paragraph.clear()
 
     for raw in source.split("\n"):
-        if _FENCE.match(raw):
-            flush_item()
-            flush_paragraph()
-            in_fence = not in_fence
-            continue
-        if in_fence:
-            continue
+        if fence_closer is not None:
+            if not _is_blank_line(raw):
+                raw_lead_cols = len(raw[: len(raw) - len(raw.lstrip(" \t"))].expandtabs(4))
+                if raw_lead_cols < fence_container_indent:
+                    fence_closer = None
+            if fence_closer is not None:
+                m_close = fence_closer.match(raw)
+                if m_close and len(m_close.group(1).expandtabs(4)) <= fence_max_indent:
+                    fence_closer = None
+                continue
+        fence_open = _FENCE_OPEN.match(raw)
+        if fence_open and not (fence_open.group(2)[0] == "`" and "`" in fence_open.group(3)):
+            lead_cols = len(fence_open.group(1).expandtabs(4))
+            container_indent = 0
+            if pending_item is not None and lead_cols >= pending_content_indent:
+                container_indent = pending_content_indent
+            else:
+                for _m_ind, c_ind, _key in reversed(list_stack):
+                    if lead_cols >= c_ind:
+                        container_indent = c_ind
+                        break
+            if lead_cols <= container_indent + 3:
+                flush_item()
+                flush_paragraph()
+                while list_stack and lead_cols < list_stack[-1][1]:
+                    list_stack.pop()
+                ch = fence_open.group(2)[0]
+                min_len = len(fence_open.group(2))
+                fence_container_indent = container_indent
+                fence_max_indent = container_indent + 3
+                fence_closer = re.compile(rf"^([ \t]*){re.escape(ch)}{{{min_len},}}[ \t]*\r?$")
+                continue
 
-        if not raw.strip():
+        if _is_blank_line(raw):
             flush_item()
             flush_paragraph()
             # A blank line ends a paragraph but not the enclosing list context;
@@ -199,15 +244,64 @@ def parse(source: str, *, min_chars: int = 25) -> list[Obligation]:
             list_stack.clear()
             continue
 
+        tbreak = _THEMATIC_BREAK.match(raw)
+        if tbreak:
+            lead_cols = len(tbreak.group(1).expandtabs(4))
+            container_indent = 0
+            if pending_item is not None and lead_cols >= pending_content_indent:
+                container_indent = pending_content_indent
+            else:
+                for _m_ind, c_ind, _key in reversed(list_stack):
+                    if lead_cols >= c_ind:
+                        container_indent = c_ind
+                        break
+            if lead_cols <= container_indent + 3:
+                flush_item()
+                flush_paragraph()
+                while list_stack and lead_cols < list_stack[-1][1]:
+                    list_stack.pop()
+                continue
+
         item = _LIST_ITEM.match(raw)
         if item:
             flush_item()
             flush_paragraph()
             indent = len(item.group(1).expandtabs(4))
+            body = item.group(2)
+            marker_prefix = (
+                raw.rstrip(" \t\r")
+                if body is None
+                else raw[: item.start(2)].rstrip(" \t")
+            )
+            marker_base = len(marker_prefix.expandtabs(4)) + 1
             while list_stack and list_stack[-1][0] >= indent:
                 list_stack.pop()
-            pending_item = [item.group(2)]
+            if body is None:
+                list_stack.append((indent, marker_base, ""))
+                continue
+            first_content_col = len(raw[: item.start(2)].expandtabs(4))
+            if first_content_col - marker_base > 3:
+                # CommonMark §5.2 Rule 2: >4 spaces after list marker = indented code on
+                # the first line with content column fixed at marker_width + 1.
+                list_stack.append((indent, marker_base, ""))
+                continue
+            content_indent = first_content_col
+            inline_fence = _FENCE_OPEN.match(body)
+            if inline_fence and not (
+                inline_fence.group(2)[0] == "`" and "`" in inline_fence.group(3)
+            ):
+                list_stack.append((indent, content_indent, ""))
+                ch = inline_fence.group(2)[0]
+                min_len = len(inline_fence.group(2))
+                fence_container_indent = content_indent
+                fence_max_indent = content_indent + 3
+                fence_closer = re.compile(
+                    rf"^([ \t]*){re.escape(ch)}{{{min_len},}}[ \t]*\r?$"
+                )
+                continue
+            pending_item = [body]
             pending_indent = indent
+            pending_content_indent = content_indent
             continue
 
         # An indented non-item line directly under an open item continues it.
@@ -272,9 +366,23 @@ def derive_row_set(before: str, after: str) -> list[Row]:
 
 def read_rev(repo: str, rev: str, path: str) -> str:
     result = subprocess.run(
-        ["git", "-C", repo, "show", f"{rev}:{path}"],
+        [
+            "git",
+            "--no-pager",
+            "--no-replace-objects",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-C",
+            repo,
+            "show",
+            f"{rev}:{path}",
+        ],
         capture_output=True,
         text=True,
+        env=_git_clean_env(),
+        stdin=subprocess.DEVNULL,
     )
     if result.returncode != 0:
         print(f"error: cannot read {rev}:{path}", file=sys.stderr)

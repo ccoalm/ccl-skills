@@ -210,6 +210,356 @@ def test_parse_junit_missing_file_returns_empty(capsys):
     assert out == {"linked": {}, "untracked": []}
 
 
+def test_parse_junit_malformed_xml_returns_empty(tmp_path, capsys):
+    j = tmp_path / "truncated.xml"
+    j.write_text('<?xml version="1.0"?><testsuite name="s"><testcase name="t1"')
+    out = g.parse_junit(str(j), {})
+    assert out == {"linked": {}, "untracked": []}
+    assert "truncated.xml" in capsys.readouterr().err
+
+    bad_enc = tmp_path / "bad_enc.xml"
+    bad_enc.write_text('<?xml version="1.0" encoding="unknown-encoding-999"?><testsuite/>')
+    out_enc = g.parse_junit(str(bad_enc), {})
+    assert out_enc == {"linked": {}, "untracked": []}
+    assert "bad_enc.xml" in capsys.readouterr().err
+
+    val_enc = tmp_path / "val_enc.xml"
+    val_enc.write_text('<testsuite/>')
+    orig_et_parse = g.ET.parse
+    try:
+        g.ET.parse = lambda _p: (_ for _ in ()).throw(ValueError("multi-byte encodings are not supported"))
+        out_val = g.parse_junit(str(val_enc), {})
+        assert out_val == {"linked": {}, "untracked": []}
+        assert "val_enc.xml" in capsys.readouterr().err
+        r_val = g.collect_results([{"name": "val-enc", "results_file": str(val_enc)}])
+        assert r_val["parsed_suites"] == 0
+        assert r_val["missing_files"] == [str(val_enc)]
+    finally:
+        g.ET.parse = orig_et_parse
+
+    ns_xml = tmp_path / "namespaced_junit.xml"
+    ns_xml.write_text(
+        '<?xml version="1.0"?>'
+        '<testsuite xmlns="urn:junit:schema" name="ns">'
+        '<testcase classname="m" name="t_fail"><failure>boom</failure></testcase>'
+        '</testsuite>'
+    )
+    r_ns = g.collect_results([{"name": "ns-suite", "results_file": str(ns_xml)}])
+    assert r_ns["parsed_suites"] == 0
+    assert r_ns["missing_files"] == [str(ns_xml)]
+
+    nested_ns_xml = tmp_path / "nested_ns_junit.xml"
+    nested_ns_xml.write_text(
+        '<?xml version="1.0"?><testsuites>'
+        '<testsuite xmlns="urn:junit:schema" name="ns">'
+        '<testcase classname="m" name="t_fail"><failure>boom</failure></testcase>'
+        '</testsuite></testsuites>'
+    )
+    r_nested_ns = g.collect_results([{"name": "nested-ns", "results_file": str(nested_ns_xml)}])
+    assert r_nested_ns["parsed_suites"] == 0
+    assert r_nested_ns["missing_files"] == [str(nested_ns_xml)]
+
+    attr_ns_xml = tmp_path / "attr_ns_junit.xml"
+    attr_ns_xml.write_text(
+        '<?xml version="1.0"?><testsuite name="s">'
+        '<testcase xmlns:ns="urn:junit:attr" ns:name="t_fail" classname="m"><failure>boom</failure></testcase>'
+        '</testsuite>'
+    )
+    r_attr_ns = g.collect_results([{"name": "attr-ns", "results_file": str(attr_ns_xml)}])
+    assert r_attr_ns["parsed_suites"] == 0
+    assert r_attr_ns["missing_files"] == [str(attr_ns_xml)]
+
+    cov_xml = tmp_path / "cov_as_junit.xml"
+    cov_xml.write_text('<?xml version="1.0"?><coverage line-rate="0.9"/>')
+    r_cov = g.collect_results([{"name": "cov-mistake", "results_file": str(cov_xml)}])
+    assert r_cov["parsed_suites"] == 0
+    assert r_cov["missing_files"] == [str(cov_xml)]
+
+    empty_suite = tmp_path / "empty_suite.xml"
+    empty_suite.write_text('<?xml version="1.0"?><testsuite name="empty" tests="0"/>')
+    r_empty = g.collect_results([{"name": "empty-ok", "results_file": str(empty_suite)}])
+    assert r_empty["parsed_suites"] == 1
+    assert r_empty["missing_files"] == []
+
+
+def test_collect_results_corrupt_junit_xml_records_infra_missing_and_preserves_baseline(tmp_path, monkeypatch, capsys):
+    sidecar = tmp_path / "tc-map.jsonl"
+    sidecar.write_text('{"test": "t_unit", "tc_ids": ["TC-UNIT-001"]}\n')
+    monkeypatch.setenv("TC_SIDECAR", str(sidecar))
+    lr_path = tmp_path / "lr.json"
+    monkeypatch.setenv("TC_LAST_RUN", str(lr_path))
+    baseline_bytes = json.dumps({
+        "schema_version": g.LAST_RUN_SCHEMA_VERSION,
+        "timestamp": "x", "linked": {"tc::TC-OLD": "通过"},
+    }).encode("utf-8")
+    lr_path.write_bytes(baseline_bytes)
+    valid = tmp_path / "unit.xml"
+    valid.write_text('<?xml version="1.0"?><testsuite name="unit"><testcase classname="m" name="t_unit"/></testsuite>')
+    corrupt = tmp_path / "corrupt.xml"
+    corrupt.write_text('<?xml version="1.0"?><testsuite name="api"><testcase')
+    cfg_path = tmp_path / ".report-config.json"
+    cfg_path.write_text(json.dumps({
+        "base_token": "",
+        "table_id": "",
+        "report_doc_url": "",
+        "test_suites": [
+            {"name": "unit", "layer": "unit", "results_file": str(valid)},
+            {"name": "api", "layer": "integration", "results_file": str(corrupt)},
+        ],
+    }))
+    r = g.collect_results(json.loads(cfg_path.read_text())["test_suites"])
+    assert r["parsed_suites"] == 1
+    assert r["missing_files"] == [str(corrupt)]
+    assert r["missing_layered_files"] == [str(corrupt)]
+    assert r["missing_layered_layers"] == ["integration"]
+
+    env = dict(os.environ)
+    env["TC_SIDECAR"] = str(sidecar)
+    env["TC_LAST_RUN"] = str(lr_path)
+    env["GIT_TRACE"] = str(lr_path)
+    env["GIT_TRACE2"] = str(lr_path)
+    proc = g.subprocess.run(
+        [sys.executable, str(Path(g.__file__).resolve()), "--config", str(cfg_path)],
+        capture_output=True, text=True, env=env,
+    )
+    assert proc.returncode == 1
+    assert "corrupt.xml" in proc.stderr
+    assert "🚨 基础设施失败" in proc.stdout
+    assert lr_path.read_bytes() == baseline_bytes
+
+    for bad_payload in (
+        '<?xml version="1.0"?><testsuite xmlns="urn:junit" name="ns">'
+        '<testcase classname="m" name="t_unit"><failure>boom</failure></testcase></testsuite>',
+        '<?xml version="1.0"?><testsuite name="ns">'
+        '<testcase xmlns:ns="urn:x" ns:name="t_unit" classname="m"><failure>boom</failure></testcase></testsuite>',
+    ):
+        corrupt.write_text(bad_payload)
+        proc_mixed_ns = g.subprocess.run(
+            [sys.executable, str(Path(g.__file__).resolve()), "--config", str(cfg_path)],
+            capture_output=True, text=True, env=env,
+        )
+        assert proc_mixed_ns.returncode == 1
+        assert "corrupt.xml" in proc_mixed_ns.stderr
+        assert "🚨 基础设施失败" in proc_mixed_ns.stdout
+        assert lr_path.read_bytes() == baseline_bytes
+
+    ns_only = tmp_path / "ns_only.xml"
+    ns_only.write_text(
+        '<?xml version="1.0"?><testsuite xmlns="urn:junit" name="ns">'
+        '<testcase classname="m" name="t_unit"><failure>boom</failure></testcase>'
+        '</testsuite>'
+    )
+    ns_cfg = tmp_path / "ns-config.json"
+    ns_cfg.write_text(json.dumps({
+        "base_token": "", "table_id": "", "report_doc_url": "",
+        "test_suites": [{"name": "ns", "results_file": str(ns_only)}],
+    }))
+    proc_ns = g.subprocess.run(
+        [sys.executable, str(Path(g.__file__).resolve()), "--config", str(ns_cfg)],
+        capture_output=True, text=True, env=env,
+    )
+    assert proc_ns.returncode == 1
+    assert "🚨 基础设施失败" in proc_ns.stdout
+    assert lr_path.read_bytes() == baseline_bytes
+
+    corrupt.write_text('<?xml version="1.0"?><testsuite name="nightly"><testcase')
+    excluded_suites = [
+        {"name": "unit", "layer": "unit", "results_file": str(valid)},
+        {"name": "nightly", "layer": "e2e", "matrix_gate": False, "results_file": str(corrupt)},
+    ]
+    capsys.readouterr()
+    r_excl = g.collect_results(excluded_suites)
+    assert r_excl["parsed_suites"] == 1
+    assert r_excl["missing_files"] == []
+    assert r_excl["excluded_missing_files"] == [str(corrupt)]
+    assert "outside matrix gate" in capsys.readouterr().err
+    excl_cfg = tmp_path / "excl-config.json"
+    excl_cfg.write_text(json.dumps({
+        "base_token": "", "table_id": "", "report_doc_url": "",
+        "test_suites": excluded_suites,
+    }))
+    proc_excl = g.subprocess.run(
+        [sys.executable, str(Path(g.__file__).resolve()), "--config", str(excl_cfg)],
+        capture_output=True, text=True, env=env,
+    )
+    assert proc_excl.returncode == 0
+    assert "outside matrix gate" in proc_excl.stderr
+    assert json.loads(lr_path.read_text(encoding="utf-8"))["linked"] == {"tc::TC-UNIT-001": "通过"}
+
+
+def test_full_bitable_mode_mixed_corrupt_xml_default_fail_on_preserves_baseline(tmp_path):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    doc_captured = tmp_path / "published-doc.md"
+    upsert_captured = tmp_path / "upsert.json"
+    lark_stub = bin_dir / "lark-cli"
+    lark_stub.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json, pathlib, sys\n"
+        "args = sys.argv[1:]\n"
+        "if '+record-list' in args:\n"
+        "    print(json.dumps({'data': {"
+        "'fields': ['用例ID', '模块', '功能点', '优先级', '状态', '测试层级', '测试类型', '信息流转'], "
+        "'data': [['TC-UNIT-001', '核心', '单测', 'P0', '未测试', 'unit', 'api-automation', '[init] ok']], "
+        "'record_id_list': ['rec1'], 'has_more': False}}))\n"
+        "elif '+record-upsert' in args:\n"
+        "    payload = args[args.index('--json') + 1]\n"
+        f"    pathlib.Path({str(upsert_captured)!r}).write_text(payload, encoding='utf-8')\n"
+        "    print('{}')\n"
+        "elif '+update' in args:\n"
+        "    md = args[args.index('--markdown') + 1]\n"
+        f"    pathlib.Path({str(doc_captured)!r}).write_text(md, encoding='utf-8')\n"
+        "    print('{}')\n"
+        "else:\n"
+        "    print('{}')\n"
+    )
+    lark_stub.chmod(0o755)
+    sidecar = tmp_path / "tc-map.jsonl"
+    sidecar.write_text('{"test": "t_unit", "tc_ids": ["TC-UNIT-001"]}\n')
+    lr_path = tmp_path / "lr-full.json"
+    valid = tmp_path / "unit.xml"
+    valid.write_text('<?xml version="1.0"?><testsuite name="unit"><testcase classname="m" name="t_unit"/></testsuite>')
+    api_xml = tmp_path / "api-full.xml"
+    api_xml.write_text('<?xml version="1.0"?><testsuite name="api"><testcase classname="m" name="t_api"/></testsuite>')
+    cfg_path = tmp_path / "full-config.json"
+    cfg_path.write_text(json.dumps({
+        "base_token": "BAS01234567890",
+        "table_id": "tbl123456",
+        "report_doc_url": "https://xxx.feishu.cn/docx/DOC123456",
+        "test_suites": [
+            {"name": "unit", "layer": "unit", "results_file": str(valid)},
+            {"name": "api", "layer": "integration", "results_file": str(api_xml)},
+        ],
+    }))
+    env = dict(os.environ)
+    env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
+    env["TC_SIDECAR"] = str(sidecar)
+    env["TC_LAST_RUN"] = str(lr_path)
+    env["GIT_TRACE"] = str(lr_path)
+    ok_proc = g.subprocess.run(
+        [sys.executable, str(Path(g.__file__).resolve()), "--config", str(cfg_path)],
+        capture_output=True, text=True, env=env,
+    )
+    assert ok_proc.returncode == 0
+    assert json.loads(upsert_captured.read_text(encoding="utf-8"))["状态"] == "通过"
+    assert "| 核心 | 1 | 1 |" in doc_captured.read_text(encoding="utf-8")
+    assert json.loads(lr_path.read_text(encoding="utf-8"))["linked"] == {"TC-UNIT-001": "通过"}
+
+    baseline_bytes = json.dumps({
+        "schema_version": g.LAST_RUN_SCHEMA_VERSION,
+        "timestamp": "x", "linked": {"TC-UNIT-001": "通过"},
+    }).encode("utf-8")
+    lr_path.write_bytes(baseline_bytes)
+    for bad_payload in (
+        '<?xml version="1.0"?><testsuite name="api"><testcase',
+        '<?xml version="1.0"?><testsuite xmlns="urn:junit" name="api"><testcase classname="m" name="t_api"><failure>x</failure></testcase></testsuite>',
+        '<?xml version="1.0"?><testsuite name="api"><testcase xmlns:ns="urn:x" ns:name="t_api" classname="m"><failure>x</failure></testcase></testsuite>',
+    ):
+        api_xml.write_text(bad_payload)
+        proc_live = g.subprocess.run(
+            [sys.executable, str(Path(g.__file__).resolve()), "--config", str(cfg_path)],
+            capture_output=True, text=True, env=env,
+        )
+        assert proc_live.returncode == 1
+        published = doc_captured.read_text(encoding="utf-8")
+        assert "| 核心 | 1 | 1 |" in published
+        assert "🚨 基础设施失败" in published
+        assert "❌ 不建议发布" in published
+        assert lr_path.read_bytes() == baseline_bytes
+
+    proc_dry = g.subprocess.run(
+        [sys.executable, str(Path(g.__file__).resolve()), "--config", str(cfg_path), "--dry-run"],
+        capture_output=True, text=True, env=env,
+    )
+    assert proc_dry.returncode == 1
+    assert "| 核心 | 1 | 0 |" in proc_dry.stdout
+    assert "would update 1 TC results" in proc_dry.stderr
+    assert "🚨 基础设施失败" in proc_dry.stdout
+    assert "❌ 不建议发布" in proc_dry.stdout
+    assert lr_path.read_bytes() == baseline_bytes
+
+
+def test_update_lifecycle_rmw_recipes_reject_direct_info_log_and_missing_ids(monkeypatch):
+    doc_path = Path(g.__file__).resolve().parent / "update-lifecycle.md"
+    blocks = g.re.findall(r"```python\n(.*?)^```", doc_path.read_text(encoding="utf-8"), flags=g.re.S | g.re.M)
+    assert len(blocks) == 4
+    ns: dict[str, object] = {}
+    exec(compile(blocks[0], "update-lifecycle-b0", "exec"), ns)
+    exec(compile(blocks[1], "update-lifecycle-b1", "exec"), ns)
+    calls: list[list[str]] = []
+
+    class FakeProc:
+        def __init__(self, returncode: int, stdout: str = "", stderr: str = ""):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    def fake_run(cmd, **_kw):
+        calls.append(list(cmd))
+        if "+record-list" in cmd:
+            return FakeProc(0, json.dumps({"data": {"items": [
+                {"record_id": "rec_1", "fields": {"用例ID": "TC-SY-001", "信息流转": "[init] a"}},
+                {"record_id": "rec_3", "fields": {"用例ID": "TC-SY-003", "信息流转": "[init] b"}},
+                {"record_id": "rec_7", "fields": {"用例ID": "TC-SY-007", "信息流转": "[init] c"}},
+            ]}}))
+        return FakeProc(0, "{}")
+
+    monkeypatch.setattr(ns["subprocess"], "run", fake_run)
+    ns["BASE_TOKEN"] = "bas_tok"
+    ns["TABLE_ID"] = "tbl_id"
+    batch_tail = blocks[2].split("\n# Precondition:", 1)[1]
+    ns["updates"] = [
+        {"用例ID": "TC-SY-001", "状态": "通过", "信息流转追加": "[张三 2026-05-28] 正常追加"},
+        {"用例ID": "TC-SY-003", "状态": "失败", "信息流转": "raw overwrite"},
+    ]
+    with pytest.raises(ValueError, match="信息流转追加"):
+        exec(compile("# Precondition:" + batch_tail, "update-lifecycle-b2-direct", "exec"), ns)
+    assert [c for c in calls if "+record-upsert" in c] == []
+
+    calls.clear()
+    ns["updates"] = [
+        {"用例ID": "TC-SY-001", "状态": "通过", "信息流转追加": "[张三 2026-05-28] 正常追加"},
+        {"用例ID": "TC-SY-999", "状态": "失败"},
+    ]
+    with pytest.raises(LookupError, match="TC-SY-999"):
+        exec(compile("# Precondition:" + batch_tail, "update-lifecycle-b2-missing", "exec"), ns)
+    assert [c for c in calls if "+record-upsert" in c] == []
+
+    calls.clear()
+    exec(compile(blocks[2], "update-lifecycle-b2-full", "exec"), ns)
+    upsert_payloads = [json.loads(c[c.index("--json") + 1]) for c in calls if "+record-upsert" in c]
+    assert len(upsert_payloads) == 3
+    assert "[init] a\n[张三 2026-05-28] 测试通过" == upsert_payloads[0]["信息流转"]
+
+
+def test_default_author_and_version_scrub_poisoned_git_env(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    clean_env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    clean_env["HOME"] = str(tmp_path)
+    clean_env["GIT_CONFIG_NOSYSTEM"] = "1"
+    g.subprocess.run(["git", "-c", "init.defaultBranch=main", "-C", str(repo), "init", "-q"], check=True, env=clean_env)
+    g.subprocess.run(["git", "-C", str(repo), "config", "user.email", "repo@example.invalid"], check=True, env=clean_env)
+    g.subprocess.run(["git", "-C", str(repo), "config", "user.name", "Repo Author"], check=True, env=clean_env)
+    g.subprocess.run(["git", "-C", str(repo), "config", "commit.gpgsign", "false"], check=True, env=clean_env)
+    (repo / "f.txt").write_text("hi\n")
+    g.subprocess.run(["git", "-C", str(repo), "add", "f.txt"], check=True, env=clean_env)
+    g.subprocess.run(["git", "-C", str(repo), "-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", "init"], check=True, env=clean_env)
+    g.subprocess.run(["git", "-C", str(repo), "tag", "v9.9.9"], check=True, env=clean_env)
+
+    monkeypatch.chdir(repo)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_NO_LAZY_FETCH", "0")
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "nonexistent.git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(tmp_path / "nonexistent-wt"))
+    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "nonexistent.idx"))
+    monkeypatch.setenv("GIT_CONFIG_PARAMETERS", "'user.name=Poisoned Author'")
+    assert g._git_clean_env().get("GIT_NO_LAZY_FETCH") == "1"
+    assert g._default_author() == "Repo Author"
+    assert g._default_version() == "v9.9.9"
+
+
 # ── Coverage parsing ──────────────────────────────────────────────────────────
 
 def test_parse_coverage_lines(tmp_path):

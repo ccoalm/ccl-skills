@@ -80,9 +80,15 @@ The risk matrix for a high-risk workflow covers the triggered failure classes fr
 
 Cross-reference: `non-functional-specialized-scenarios.md` (High-risk resilience boundaries) states the launch-gate counterpart — which classes require scenario tests or drills at release. That is a gate-criteria list; this is the test-matrix failure-class list. The two complement each other and neither replaces the other.
 
+Examples: idempotency unit/contract plus duplicate callback integration; auth timeout unit plus cross-tenant API integration; AI fallback eval/replay plus visible refusal E2E; client double-submit component test plus server idempotency integration. High-risk backend tests should include missing tenant/actor/subject/resource-scope rejection, durable idempotency beyond cache TTL, mutation-plus-audit/outbox atomicity or repair visibility, stale/pending worker status, and operator/request/trace evidence for admin repair paths when those risks exist.
+
+### Authentication And Account Scenario Matrix
+
+Cover identity-input validation across relevant entries, available sign-in methods, registration, account recovery or password reset/change, logout/account switching, sensitive storage/log cleanup, permission or host-authorization denial, and UI/UX acceptance for error copy, disabled reasons, keyboard/safe-area/touch behavior, and visual evidence. If a capability such as recovery, host authorization, real message delivery, or live account verification is absent or external, record it as `product gap`, `blocked`, or `live-only` instead of silently excluding it from the test claim.
+
 ## Composite Pipeline Acceptance Scope
 
-The entry rule's three-layer acceptance for composite / multi-stage pipelines (module-level / chain-level / product-level) applies to behavior-affecting stage changes, contract/composition/fallback changes, or product-baseline-sensitive changes — a pure internal refactor with unchanged contracts may rely on existing lower-layer tests plus unchanged-contract evidence (do not force all three layers on every refactor).
+The entry rule's three-layer acceptance for composite / multi-stage pipelines (module-level / chain-level / product-level) applies to behavior-affecting stage changes, contract/composition/fallback changes, or product-baseline-sensitive changes — a pure internal refactor with unchanged contracts may rely on existing lower-layer tests plus unchanged-contract evidence (do not force all three layers on every refactor). A change to one sub-module cannot pass on its local metric alone if the end-to-end product result regresses; require an end-to-end check whenever the pipeline composition or a stage contract changes. (For AI/inference pipelines the component-vs-end-to-end split and "launch follows the product baseline, not the best component metric" rule are owned by `llm-inference-integration`; this rule is the stack-agnostic testing form.)
 
 ## Scenario Selection
 

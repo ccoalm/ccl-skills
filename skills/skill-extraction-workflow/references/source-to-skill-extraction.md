@@ -10,10 +10,11 @@ Domain methods own extraction procedure and routing only; target architecture, i
 
 | Method | Use when the source contains |
 | --- | --- |
-| [Database And DAL Extraction Method](#database-and-dal-extraction-method) | Models, DDL, migrations, generated DAL, repositories, query builders, transactions, data migrations, sharding, or DB/cache consistency code |
-| [Redis Extraction Method](#redis-extraction-method) | Cache adapters, key builders, locks, Lua/CAS scripts, counters, rate limiters, idempotency stores, streams, Pub/Sub, queues, or Redis-backed coordination |
+| [Database And DAL Extraction Method](backend-data-and-redis-extraction.md#database-and-dal-extraction-method) | Models, DDL, migrations, generated DAL, repositories, query builders, transactions, data migrations, sharding, or DB/cache consistency code |
+| [Redis Extraction Method](backend-data-and-redis-extraction.md#redis-extraction-method) | Cache adapters, key builders, locks, Lua/CAS scripts, counters, rate limiters, idempotency stores, streams, Pub/Sub, queues, or Redis-backed coordination |
+| [Design, Figma, And Ledger Extraction Methods](design-and-ledger-extraction.md) | Any source-derived rule extraction (candidate-rule ledgers and durable decision persistence), broad source-coverage matrices, UI/UX judgment-delta matrices, Figma node reading, or execution-completeness checks |
 
-Keep this file as the method index while there are one or two domain methods. When a third or later broad domain method is actually needed, such as HTTP/API, queue/MQ, auth, observability, or frontend state extraction, split each domain method into a focused reference file and leave links here.
+Keep this file as the domain method index: keep 1–2 short domain methods inline when small, and once a third broad method is needed, split domain-specific extraction methods (such as database/DAL, Redis, Figma/design, HTTP/API, queue/MQ, auth, observability, or frontend state extraction) into focused reference files and leave links here.
 
 ## Evidence Grades
 
@@ -361,86 +362,6 @@ Use honest coverage labels:
 
 When writing a source map or final summary, use the weakest true label. If in doubt, downscope the wording.
 
-## Database And DAL Extraction Method
-
-Use this when extracting database experience from repositories with models, DDL, migrations, generated DAL, repositories, query builders, transactions, cache locks, data migrations, or sharding logic. Do not summarize database experience from file counts alone.
-
-Start with a database source register:
-
-| Source class | Minimum evidence to collect | What to extract | Typical owner |
-| --- | --- | --- | --- |
-| Schema and model definitions | DDL, migrations, model structs/classes, generated schema metadata, comments, unique constraints, soft-delete fields, timestamps | Table ownership, source-of-truth, primary key strategy, required/default fields, enum/state fields, unique constraints, compatibility and rollback needs | Architecture skill |
-| Indexes and query paths | Index definitions plus repository/service call sites that use the filter/order/group shape | Composite index order, stable pagination, uniqueness as data invariant, high-cardinality list safety, query-plan risk | Architecture and testing skills |
-| Repository and DAL methods | Generated query/update helpers, handwritten repository methods, raw SQL, transaction-bound variants | Intent-focused repository APIs, query-builder safety, bounded lists, explicit update columns, raw SQL containment, read/write routing | Implementation skill |
-| Create/upsert/import paths | Service mutation flow, validation, unique-key checks, batch import code, generated IDs, side effects | Idempotency, default state initialization, transaction boundary, partial-failure report, duplicate handling, post-create side effects | Implementation and testing skills |
-| Update/delete/state transition paths | Status machine updates, partial updates, locks, compare-and-set, audit/outbox/cache/index updates | Optimistic/pessimistic locking, constrained updates, delete safety, audit/outbox atomicity, repair/replay path | Implementation, architecture, testing skills |
-| Transactions and consistency | `Tx` wrappers, transaction-bound repositories, retry/rollback paths, panic recovery, post-commit effects | What must be atomic, what is async/repairable, stale/pending state visibility, compensation and reconciliation | Architecture and implementation skills |
-| Sharding and partitioning | Shard key, router function, table suffix, shard-aware DAL, migration/backfill tools, bypass rules | Shard-key choice, query must-carry constraints, cross-shard aggregation policy, migration plan, route tests | Architecture, implementation, testing skills |
-| Cache and DB interaction | Redis/cache keys, Lua/CAS helpers, invalidation, counters, locks, DB fallback | Cache-aside/write-through boundaries, stale-read tolerance, lock ownership, counter consistency, miss/rebuild behavior | Implementation and testing skills |
-| Tests and CI | Unit/integration tests, live-infra tests, wrappers, migration dry-run, generated drift checks | Which DB behavior is actually asserted, which tests are diagnostic only, what new gates future DB changes need | Testing skill |
-
-Extraction rules:
-
-- Trace each durable rule through `schema/model -> query/mutation call site -> transaction/cache/side effect -> test or missing test`. A schema field or DAL method by itself is evidence of existence, not evidence of a reusable rule.
-- Infer index lessons from real query shapes, not from index names alone. Record the filter, sort, pagination, and uniqueness invariant that make the index necessary.
-- Separate table design from repository implementation. Architecture owns data ownership, source-of-truth, sharding, migration, and consistency policy; implementation owns generated DAL usage, repository shape, transaction helpers, update builders, and code safety; testing owns proof.
-- For create/update/delete rules, identify the failure prevented: duplicate creation, lost update, invalid status transition, partial side effect, stale cache/index, unbounded write, or unrecoverable migration.
-- For sharding rules, require a route key, query constraint, migration/backfill story, and test surface before landing a strong rule. If only table suffixes or router names were inspected, record provenance but downgrade the rule.
-- For cross-language generalization, route language-agnostic lessons to architecture or testing first. Mirror into Python/Go implementation only when the target stack has enough evidence or the rule is about a shared concept such as repository boundary, transaction scope, migration review, or cache consistency.
-- Keep raw SQL snippets, table names, field names, and business-domain labels out of shared guidance. Preserve only sanitized source rows and capability-level observations.
-
-Candidate rule ledger shape:
-
-| Observation | Evidence path | Failure class | Candidate reusable rule | Keep/merge/route/discard | Target owner | Required verification |
-| --- | --- | --- | --- | --- | --- | --- |
-| Query filters by owner, state, and created time with stable sort | schema/index plus repository list call | slow list or unstable pagination | Composite index and pagination must match real filter/sort path | keep | architecture/testing | repository test, large-fixture test, or explain/dry-run note |
-
-Completion standard:
-
-- The final claim must say whether coverage is topology inventory, targeted DAL extraction, representative workflow extraction, or full database workflow extraction.
-- A complete database extraction needs closed rows for schema/model, indexes/query paths, create/update/delete, transactions, cache/side effects, sharding/migration if present, and tests.
-- Do not land a final database rule if the only evidence is generated code, file names, or a single isolated DAL helper without a caller.
-
-## Redis Extraction Method
-
-Use this when extracting Redis experience from repositories with cache adapters, distributed locks, Lua scripts, rate limiters, idempotency stores, counters, Redis Streams, Pub/Sub, lightweight task queues, local caches, or Redis-backed coordination. Do not reduce Redis extraction to a list of commands.
-
-Start with a Redis source register:
-
-| Source class | Minimum evidence to collect | What to extract | Typical owner |
-| --- | --- | --- | --- |
-| Client setup and lifecycle | Config, secret lookup, service discovery, sync/async client choice, pool/timeouts, ping/readiness, close/shutdown paths | Dependency assembly, fail-open/fail-closed behavior, test substitution, resource cleanup | Implementation and architecture skills |
-| Key builders and scope | Key functions/constants, prefixes, tenant/user/resource dimensions, environment/lane isolation, pattern-delete use | Key namespace policy, collision prevention, sensitive-value avoidance, key migration/invalidation | Implementation and architecture skills |
-| Cache usage | Cache-aside/write-through code, negative cache, JSON/schema decode, malformed payload handling, invalidation/delete paths, DB fallback | Freshness window, stale-read tolerance, cache miss vs Redis failure, value versioning, invalidation ownership | Implementation, architecture, testing skills |
-| Locks and leases | `SET NX EX/PX`, Redlock/proven library, unique token, compare-and-delete unlock, renewal, wait/retry loops | Lock scope, lease/max lease, cancellation, renewal failure policy, duplicate-work prevention | Implementation and testing skills |
-| Lua/CAS/transactions | Scripts, `EVAL`/`EVALSHA`, `NOSCRIPT` reload, `WATCH`/pipeline, return codes, error mapping | Atomic compound operation, compare-failed/missing-key semantics, fallback and observability | Implementation and testing skills |
-| Counters, quotas, rate limits | `INCR/DECR`, positive-only counters, sorted-set sliding windows, retry/conflict behavior, expiry policy | Missing-key semantics, underflow behavior, exact vs approximate truth, user-facing error contract | Implementation, architecture, testing skills |
-| Idempotency and dedupe | SETNX claims, pending/complete markers, owner tokens, retry counts, TTLs, persisted DB/outbox fallback | Duplicate handling, claim expiry, durable truth boundary, fail-safe behavior on Redis errors | Architecture, implementation, testing skills |
-| Streams, Pub/Sub, queues | `XADD/XREAD`, consumer groups/ack if used, heartbeat, stream TTL, delete/trim, Pub/Sub publish/subscribe | Delivery guarantees, replay/resume point, lost-message tolerance, cleanup, user-visible progress state | Architecture, implementation, testing skills |
-| Tests and diagnostics | Unit/integration tests, fake Redis/fakeredis, containers, live Redis tests, logs/metrics, slow/hot key checks | Which Redis behavior is asserted, which tests are diagnostic only, what future Redis changes need as gates | Testing skill |
-
-Extraction rules:
-
-- Classify each Redis use by responsibility first: cache, lock, idempotency, counter/quota, rate limit, stream/queue, session, config, or diagnostic helper. A command name alone is not a reusable pattern.
-- For every kept rule, name the failure prevented: stale authorization, duplicate side effect, lock leakage, lost queue item, counter underflow, rate-limit bypass, cache poisoning, hot key, data leak in logs, or unbounded scan/delete.
-- Trace correctness through `key scope -> command/script semantics -> failure behavior -> caller decision -> test or missing test`. A Redis helper without caller behavior or test evidence should usually remain provenance-only.
-- Separate ephemeral coordination from durable truth. If Redis controls a domain outcome, require a persisted record, idempotency table, outbox/event log, reconciliation path, or explicit risk acceptance.
-- For cross-language generalization, route language-agnostic Redis rules to architecture or testing first. Mirror into Python/Go implementation when the target stack has matching client/runtime concepts, and add an evidence caveat when a stack has not been directly inspected.
-- Treat broad key deletion, blocking stream reads, Pub/Sub, live Redis tests, and script-cache fallback as risk surfaces that need explicit limits, cleanup, and observability before becoming recommended practice.
-- Keep source-specific key names, stream names, tenant labels, business event names, endpoints, and raw payloads out of shared guidance. Preserve sanitized source rows and capability-level observations only.
-
-Candidate rule ledger shape:
-
-| Observation | Evidence path | Redis responsibility | Failure class | Candidate reusable rule | Keep/merge/route/discard | Target owner | Required verification |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Atomic claim script writes pending marker with TTL and returns explicit statuses | store implementation plus tests | idempotency | duplicate side effect or stuck pending claim | Idempotency claims need pending/complete states, TTLs, explicit return codes, and retry/removal behavior | keep | architecture/implementation/testing | duplicate, pending, expired, Redis-error tests |
-
-Completion standard:
-
-- The final claim must say whether coverage is Redis topology inventory, targeted Redis extraction, representative workflow extraction, or full Redis workflow extraction.
-- A complete Redis extraction needs closed rows for client lifecycle, keys/TTL, cache, locks, atomic scripts, counters/rate limits if present, streams/queues if present, idempotency if present, observability, and tests.
-- Do not land a final Redis rule if the only evidence is a command wrapper, file name, or one isolated helper without caller semantics or failure handling.
-
 ## Correction RCA Protocol
 
 Use this when the user, reviewer, or later evidence shows that a skill extraction was incomplete, overstated, too generic, under-sourced, or landed in the wrong skill.
@@ -514,69 +435,7 @@ When evidence is sparse, stale, or one-sided:
 - State what evidence would raise confidence: repeated examples, tests, production checklists, review records, source access, or a confirmed user decision.
 - Avoid filling gaps with invented links, invented quotes, generic search results, or copied boilerplate from unrelated skills.
 
-## Source Coverage Matrix
-
-Use a coverage matrix for broad extractions. The matrix is a temporary analysis artifact, not a skill file.
-
-| Source category | Check | Useful output |
-| --- | --- | --- |
-| Root docs | Agent instruction files, README, architecture docs, local conventions | repo intent, commands, ownership, constraints |
-| Build and CI | Makefile, package metadata, CI config, scripts | canonical commands, gates, generated artifacts |
-| Contracts | protobuf/OpenAPI/RPC/event schemas, migrations, API docs | compatibility rules, contract-first workflow |
-| Runtime wiring | config, dependency clients, lifecycle, readiness, observability | platform boundaries, failure behavior |
-| Tests | unit, contract, integration, E2E, fixtures, test docs | quality gates, evidence patterns |
-| Agent skills | local `.claude`, `.codex`, `.trae`, or other skill folders | workflow habits, review/debug/test automation methods |
-| Product/design sources | design systems, Figma-derived notes, UI implementation states | design readiness, interaction states, handoff rules |
-| Review/bug history | review notes, postmortems, repeated user corrections | prevention rules, conflict decisions |
-
-Skip or down-rank generated code, vendor trees, third-party assets, static bundles, archived/deprecated systems, and source areas explicitly declared obsolete unless they reveal a contract or migration rule.
-
-## Extraction Ledger
-
-During analysis, track candidate rules in a small table:
-
-| Origin | Source IDs read before drafting | Evidence | Candidate rule | Conflict | Decision | Target | Reason |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-
-## Judgment Delta Matrix
-
-Required before landing UI/UX, Figma, frontend, app, or client extraction as design-judgment work. It prevents the common failure where a pass adds layout recipes or validation checks but reports them as newly extracted aesthetics, interaction logic, behavioral logic, or psychology.
-
-| Judgment layer | Delta | Source observations | Candidate rule or decision | Target reference | Verification |
-| --- | --- | --- | --- | --- | --- |
-| Aesthetics | `new`, `confirmed`, `narrowed`, `routed`, or `no new evidence` | What was observed about hierarchy, density, spacing, rhythm, color weight, material, mood, craft, or visual focus | What rule changes, what is discarded, or why no new rule is landed | Owning design/client reference | Screenshot, node evidence, or review pressure scenario |
-| Interaction logic | `new`, `confirmed`, `narrowed`, `routed`, or `no new evidence` | What was observed about entry, inspection, action, confirmation, return, progressive disclosure, or task continuity | What rule changes, what is discarded, or why no new rule is landed | Owning design/client reference | Flow trace or rendered interaction check |
-| Behavioral logic | `new`, `confirmed`, `narrowed`, `routed`, or `no new evidence` | What was observed about repeat, mistake, waiting, interruption, disabled states, undo, retry, cancel, or recovery | What rule changes, what is discarded, or why no new rule is landed | Owning design/client reference | State-machine check, scenario test, or code evidence |
-| Psychology | `new`, `confirmed`, `narrowed`, `routed`, or `no new evidence` | What was observed about anxiety, uncertainty, perceived control, trust, motivation, consequence, or cognitive load | What rule changes, what is discarded, or why no new rule is landed | Owning design/client reference | Pressure scenario or rendered acceptance check |
-
-Use decisions consistently:
-
-- Keep: promote directly to the owning skill.
-- Merge: combine compatible variants into a generalized rule.
-- Discard: stale, domain-specific, deprecated, weak, or contradicted.
-- Route: useful, but owned by another skill.
-
-The ledger prevents two common failures: silently skipping a source and appending conflicting rules without judgment.
-
-Use `origin` strictly:
-
-- `observed`: the rule came from source observations recorded before drafting the landed rule.
-- `hypothesis`: the rule came from intuition, external memory, reviewer suggestion, or a user challenge before the supporting source was inspected.
-
-Do not land a source-derived rule while it is still `hypothesis`. Convert it to `observed` only when the ledger names the source IDs and concrete observations that support it; otherwise narrow, route, discard, or keep it out of the skill.
-
-For high-subjectivity skills such as design, UX, frontend/client, product workflow, architecture, or review, include pressure scenarios in the ledger before editing. A rule is not ready if it cannot explain what future bad output it prevents and how acceptance will notice the difference.
-
-## Decision Persistence
-
-The extraction ledger can stay temporary, but consequential decisions must leave a durable trace:
-
-- For source-heavy skills, keep source status, exclusions, and keep/merge/discard summaries in a source map or evidence map.
-- For any landed source-derived rule, the durable trace must retain rule origin, source IDs read before drafting, and concrete observations. This can live in a source map, evidence map, correction log, or concise commit/response summary for very small changes, but it cannot be omitted.
-- For small changes, include the decision reason in the final response or commit body without copying private source details.
-- For discarded sources, record enough reason to avoid re-litigating them: stale, weak, duplicated, domain-specific, superseded, low quality, or routed elsewhere.
-- For skills that evolve through repeated corrections, keep a compact correction log pattern: scene, previous wrong behavior, corrected rule, target file or section, and date/version when relevant.
-- Do not preserve raw source dumps, credentials, personal paths, screenshots, or business-specific records just to explain a decision.
+For candidate-rule ledgers and durable decision persistence (required on every source-derived rule extraction), broad source-coverage matrices, UI/UX judgment-delta matrices, Figma node-reading methods, and execution-completeness checks, load [design-and-ledger-extraction.md](design-and-ledger-extraction.md).
 
 ## Extraction Questions
 
@@ -593,83 +452,6 @@ The extraction ledger can stay temporary, but consequential decisions must leave
 - Keep code names only in provenance notes while analyzing; remove them from final executable guidance.
 - Translate examples into conditions and checks rather than copying source structure.
 - Add negative space: when not to use the skill, when to route elsewhere, and what not to extract.
-
-## Source-Derived Design And Code Skills
-
-When extracting from design tools, product screenshots, frontend code, or interaction-heavy sessions:
-
-- Keep one canonical source repository for the skill, then install it through symlinks or the user's standard skill installation mechanism so every agent reads the same files.
-- Separate usable rules from provenance. Normal users should need only the skill entrypoint and focused references; Figma URLs, file keys, local code paths, and source names belong in source maps or evidence maps.
-- Make the skill usable without source access. Lack of Figma or repository permission should not block normal design, implementation, review, or launch-check work.
-- Treat source names as evidence labels, not product intent. A source domain should not define the new skill's product domain unless the active user context explicitly says that domain is intended.
-- Write capability-first rules. If a source has domain-heavy file names, repository paths, or workflow labels, put the generalized capability first and demote source identity to provenance.
-- Prefer focused references over one giant extraction file. Add a focused reference when a pattern is strong enough to be loaded independently, such as complex creation, analytics, operational processing, resource management, frontend code evidence, or launch acceptance.
-- Code evidence is not design taste. Frontend repositories can provide state handling, permission, upload, task, responsive, build, and observability patterns, but low-quality or domain-specific UI should not become visual guidance.
-- If a design skill built from Figma or frontend code still cannot guide attractive, shippable screens, treat the extraction as incomplete. Re-open the design sources and implementation evidence, then add executable layout recipes, component hierarchy, spacing/density rules, state templates, interaction patterns, and rendered acceptance criteria.
-- Pair design-source extraction with frontend-code extraction carefully: design tools provide visual intent and interaction models; code provides real states, data density, runtime constraints, component boundaries, and failure handling. Keep both, but do not let weak implementation quality override strong design intent.
-- Behavioral, aesthetic, psychology, or interaction-logic guidance must be grounded in source evidence or inspected high-quality external sources. Do not add these layers as generic-sounding polish. If a related point remains external expertise only, keep it outside executable guidance unless it is explicitly scoped as low-confidence review context with pressure scenarios and acceptance checks.
-
-### Figma Reading Method
-
-Use this method when extracting from Figma into reusable skills:
-
-1. Start from a file register, not from a few visible frames.
-   - A team/project URL is a scope clue, not proof of full coverage. If the tool cannot enumerate the project, use known file keys, a user-provided export/list, or local source maps, and state that the boundary is known-key coverage.
-   - Each row needs file name, file key, source status, inclusion decision, minimum read depth, actual read depth, extracted mechanisms, discarded domain details, and target skill/reference.
-2. Classify file and page status before extracting rules.
-   - Current/formal files are primary evidence.
-   - `补充` and `探索` are not automatic exclusions; inspect them and compare against stronger current sources.
-   - Deprecated, copied, old, archive, wrong-version, and explicitly discarded pages are excluded or weak support only unless they reveal a reusable negative pattern.
-   - Component libraries and icon libraries provide component capability and handoff practice, not product IA.
-3. Read in layers.
-   - File key -> page list -> top-level nodes -> key sections/frames -> child nodes and small text -> screenshots for visual verification.
-   - Use page/node ids to re-read concrete frames, modals, drawers, hover states, toolbars, empty/error states, and small labels that are easy to miss in a large frame.
-   - If large recursive node reads time out or return incomplete text, continue with child indexing and batched child-frame reads before using screenshots. Do not treat screenshots as primary extraction evidence when node metadata/design context can still be read.
-   - For large sections, first run a lightweight index pass that returns page/section/frame/component names, ids, dimensions, and coordinates. Then select representative and conflict-prone frames for focused metadata or design-context reads.
-   - For component instances or symbol-heavy screens, read the instance/component summary plus selected descendants: text, sizes, fills/strokes, corner radii, main component names, child count, and visible state labels. Do not infer labels or states only from visual memory.
-   - Use screenshots only to verify visual composition, density, first viewport, and obvious overlap/cropping. A screenshot can support a rule, but it cannot replace node/text/state inventory for extraction.
-   - If only screenshots are available, label the pass as visual inspection or screenshot-backed fallback, not Figma node extraction.
-4. Recover from source-read failures before extracting rules.
-   - A timeout, partial output, transport failure, or overlarge response is not evidence coverage. It is a signal to switch strategy.
-   - Reduce breadth before reducing depth: page list -> top-level nodes -> one section/frame -> direct children -> selected child frames -> targeted text/metadata -> screenshot fallback.
-   - Return less data per call: names, ids, dimensions, layout modes, direct children, small text samples, and visible state labels before full recursive descendant dumps.
-   - Keep a retry ledger in the source register or source map: failed method, error or timeout, fallback method, recovered evidence, remaining gap, and whether the recovered evidence supports the landed rule.
-   - Land only what the recovered evidence supports. If only layout dimensions were recovered, land layout rules and keep text/state extraction pending; if only top-level structure was recovered, label the pass as section-level or shallow node inventory.
-   - If no fallback succeeds, mark the source row pending or unavailable with residual risk and the next unblock action.
-5. Extract the four judgment layers from actual observations.
-   - Aesthetics: hierarchy, density, spacing, rhythm, material, color weight, mood, and visual focus.
-   - Interaction logic: entry, inspection, action, confirmation, progressive disclosure, return path, and task continuity.
-   - Behavioral logic: repeat, waiting, mistake, disabled state, undo, retry, cancel, interruption, recovery, and queue/task boundary.
-   - Psychology: uncertainty, cognitive load, perceived control, anxiety, trust, consequence, and motivation.
-6. Pair screenshots with state inventory.
-   - Capture or inspect first viewport, long content, empty/loading/error, disabled/no-permission, modal/drawer, narrow desktop, mobile portrait, and landscape when relevant.
-   - A screenshot that passes only with ideal data is weak; test long labels, no data, partial data, and failure states.
-   - Record which states were read as nodes and which were only visually inspected. If a conflict appears between screenshot and node/text metadata, prefer current node metadata and record the screenshot as visual support only.
-7. Cross-check corresponding code when the skill affects implementation, testing, or launch.
-   - Figma owns visual intent and interaction model; code owns state machines, data density, persistence, responsive calculations, failure recovery, and runtime constraints.
-   - Update design, web/app development, testing, and product workflow targets according to lifecycle impact; do not land a Figma-derived rule only in the design skill when it creates implementation or acceptance obligations.
-8. Preserve source access independence.
-   - Normal skill users should not need Figma access. Move Figma URLs, file keys, page names, node ids, local code paths, and source-domain labels into provenance only.
-   - Executable guidance must be source-neutral: layout recipes, component hierarchy, state templates, interaction patterns, implementation ownership, and screenshot/test acceptance.
-
-9. Name coverage precisely.
-   - `Known-key page inventory`: file/page/top-level nodes were read, but project-wide enumeration was not proven.
-   - `Section-level index`: sections and direct child frames/components were read, but descendants were not all expanded.
-   - `Batched frame extraction`: selected frames were read deeply enough to extract text/layout/state mechanics.
-   - `Screenshot-backed fallback`: visual inspection was used because node reads were unavailable or timed out.
-   - `Full nested-node extraction`: only use this when every required source row has closed descendant coverage or the user explicitly downscoped remaining rows.
-
-## Execution Completeness Checks
-
-Use these checks before treating a source-derived skill as ready:
-
-- Source coverage is not the same as usable guidance. After reading Figma, code, docs, or online sources, convert the strongest findings into repeatable recipes: layout/state patterns for design skills, analysis/debug/test workflows for development skills, and launch/iteration gates for product workflow skills.
-- Directional guardrails are insufficient for visual or interaction-heavy skills. Apply the incomplete-design extraction rule above and include examples of what to reject or merge.
-- Development skills need analysis and debugging, not only implementation defaults. Include how to find the owning module, classify failures by layer, inspect runtime evidence, write regression tests, and name the verification surface.
-- Treat different execution surfaces as split evidence, not an automatic split decision. Different runtime tooling, platform capabilities, build/release gates, or verification evidence may justify separate skills only when the trigger, owner, and workflow are also clearly different; shared product or lifecycle decisions belong in a routing/workflow skill.
-- Keep source-specific labels out of the normal workflow. Put source maps or evidence maps behind references; the entrypoint should speak in capabilities, not in source file names, product names, or legacy domains.
-- When a source is useful only as a negative example, extract the rejection rule instead of copying the pattern. Record whether the source was discarded for stale status, weak UI quality, domain specificity, duplication, or conflict.
-- Treat "compliant but mediocre" likely output as an extraction defect. Apply the incomplete-design extraction rule above before claiming completion.
 
 ## Placement
 
@@ -689,3 +471,22 @@ For an external-pack / sibling-repo benchmark round (the `SKILL.md` benchmark Co
 - **Disposition vocabulary**: beyond keep/merge/discard/route, two middle states are legitimate and prevent binary misjudgment — `待实验` (hypothesis worth testing: record the hypothesis, the experiment, and pass/fail criteria; do not land prose) and `条件化采纳` (adopt with explicit applicability conditions, disable conditions, and a fallback path recorded next to the rule).
 - **Conflict synthesis, three shapes before choosing sides**: when the source contradicts our rule, first test whether the conflict is (a) a missing tier — both are right in different regimes, so merge by adding the regime split; (b) a missing ordering — both rules survive with an explicit precedence; (c) conflated authority — one side owns proposing and the other owns deciding, so split the powers. Only when none fits is it a genuine pick-one decision (keep the stricter per Conflict Resolution).
 - **W-type internal-consistency sweep**: a mature skill tree's highest-yield audit is internal drift, not external comparison. The recurring W classes to grep for: an absolutized single-case rule (one scenario promoted to an unconditional "always/never"), same-name-different-meaning across files, translation/paraphrase drift between sibling-language files, a template violating its own stated hard rule, stale-era residue (rules about tools/versions no longer in the stack), a hard-coded value where a policy/parameter reference should be, and version-lagged claims about fast-moving vendors. Route wording-level dedup to `tighten-doc`; land each confirmed W as a fix with both sides cited.
+
+## Database And DAL Extraction Method
+Moved to [backend-data-and-redis-extraction.md](backend-data-and-redis-extraction.md#database-and-dal-extraction-method).
+## Redis Extraction Method
+Moved to [backend-data-and-redis-extraction.md](backend-data-and-redis-extraction.md#redis-extraction-method).
+## Source Coverage Matrix
+Moved to [design-and-ledger-extraction.md](design-and-ledger-extraction.md#source-coverage-matrix).
+## Extraction Ledger
+Moved to [design-and-ledger-extraction.md](design-and-ledger-extraction.md#extraction-ledger).
+## Judgment Delta Matrix
+Moved to [design-and-ledger-extraction.md](design-and-ledger-extraction.md#judgment-delta-matrix).
+## Decision Persistence
+Moved to [design-and-ledger-extraction.md](design-and-ledger-extraction.md#decision-persistence).
+## Source-Derived Design And Code Skills
+Moved to [design-and-ledger-extraction.md](design-and-ledger-extraction.md#source-derived-design-and-code-skills).
+### Figma Reading Method
+Moved to [design-and-ledger-extraction.md](design-and-ledger-extraction.md#figma-reading-method).
+## Execution Completeness Checks
+Moved to [design-and-ledger-extraction.md](design-and-ledger-extraction.md#execution-completeness-checks).

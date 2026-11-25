@@ -103,14 +103,18 @@ def _check_file(path):
 
 
 def _is_fake_dict_node(n):
+    if isinstance(n, ast.IfExp):
+        return _is_fake_dict_node(n.body) or _is_fake_dict_node(n.orelse)
     # a fake dict literal ({"success": False}) OR a dict(success=False) call
     return (isinstance(n, ast.Dict) and _dict_is_fake(n)) or (isinstance(n, ast.Call) and _call_is_fake_dict(n))
 
 
 def _return_hit(v):
-    # Inspect the return ROOT plus ONE level into a response constructor — NOT the whole
-    # subtree, so a fake dict nested inside legitimate data
+    # Inspect the return ROOT plus ONE level into a response constructor (and conditional ternary
+    # branches) — NOT the whole subtree, so a fake dict nested inside legitimate data
     # (`return {"items": [{"success": False}]}`) is not flagged.
+    if isinstance(v, ast.IfExp):
+        return _return_hit(v.body) or _return_hit(v.orelse)
     if isinstance(v, ast.Tuple):
         if _tuple_is_fake(v):
             return "error-tuple (data,err)/(None,msg)"
@@ -136,21 +140,29 @@ def main(argv):
     if not argv:
         print("usage: lang-basics-ast-check.py <transport-path> [...]", file=sys.stderr)
         return 2
-    walk_errs = []
+    files = []
     for p in argv:
         if not os.path.exists(p):
             print(f"lang-basics-ast: path not found: {p} — inconclusive", file=sys.stderr)
             return 2
-        if os.path.isfile(p) and not p.endswith(".py"):
+        if os.path.isdir(p):
+            walk_errs = []
+            sub = list(_iter_py([p], onerror=walk_errs.append))
+            if walk_errs:
+                print(f"lang-basics-ast: cannot read part of scope ({walk_errs[0]}) — inconclusive", file=sys.stderr)
+                return 2
+            if not sub:
+                print(f"lang-basics-ast: no Python files under directory: {p} — inconclusive", file=sys.stderr)
+                return 2
+            files.extend(sub)
+        elif os.path.isfile(p):
+            if not p.endswith(".py"):
+                print(f"lang-basics-ast: not a Python file: {p} — inconclusive", file=sys.stderr)
+                return 2
+            files.append(p)
+        else:
             print(f"lang-basics-ast: not a Python file: {p} — inconclusive", file=sys.stderr)
             return 2
-        if os.path.isdir(p) and not any(_iter_py([p], onerror=walk_errs.append)):
-            print(f"lang-basics-ast: no Python files under directory: {p} — inconclusive", file=sys.stderr)
-            return 2
-    files = list(_iter_py(argv, onerror=walk_errs.append))
-    if walk_errs:
-        print(f"lang-basics-ast: cannot read part of scope ({walk_errs[0]}) — inconclusive", file=sys.stderr)
-        return 2
     if not files:
         print("lang-basics-ast: no Python files in scope — inconclusive", file=sys.stderr)
         return 2

@@ -76,6 +76,11 @@ DATE_TODAY = datetime.now().strftime("%Y-%m-%d")
 _CI_ENV_VARS = ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "CIRCLECI", "JENKINS_URL",
                 "BUILDKITE", "TF_BUILD", "CODEBUILD_BUILD_ID")
 
+def _git_clean_env() -> dict[str, str]:
+    clean = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    clean["GIT_NO_LAZY_FETCH"] = "1"
+    return clean
+
 
 def _default_config() -> str:
     # Prefer test/.report-config.json (template convention); fall back to root
@@ -90,7 +95,9 @@ def _default_source() -> str:
 
 def _default_author() -> str:
     result = subprocess.run(
-        ["git", "config", "user.name"], capture_output=True, text=True
+        ["git", "--no-pager", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null",
+         "config", "user.name"],
+        capture_output=True, text=True, env=_git_clean_env(), stdin=subprocess.DEVNULL,
     )
     name = result.stdout.strip()
     return name if name else os.environ.get("USER", "CI")
@@ -98,8 +105,9 @@ def _default_author() -> str:
 
 def _default_version() -> str:
     result = subprocess.run(
-        ["git", "describe", "--tags", "--always", "--dirty"],
-        capture_output=True, text=True
+        ["git", "--no-pager", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null",
+         "describe", "--tags", "--always", "--dirty"],
+        capture_output=True, text=True, env=_git_clean_env(), stdin=subprocess.DEVNULL,
     )
     return result.stdout.strip() if result.returncode == 0 else ""
 
@@ -210,25 +218,25 @@ def _junit_status(tc_el: ET.Element) -> str:
     return "通过"
 
 
-def parse_junit(results_file: str,
-                sidecar: dict[str, list[str]] | None = None) -> dict:
-    """
-    Parse a JUnit XML file.
-    Returns:
-      {
-        "linked":    {tc_id: status, ...},      # tests registered in sidecar
-        "untracked": [{"name", "classname", "status"}, ...]  # tests with no sidecar entry
-      }
-    A TC appearing in multiple linked tests merges pessimistically:
-      失败 > 阻塞 > 跳过 > 通过.
-    """
+def _parse_junit_checked(results_file: str,
+                         sidecar: dict[str, list[str]] | None = None) -> tuple[dict, str | None]:
     p = Path(results_file)
     if not p.exists():
         print(f"  ⚠ Results file not found: {results_file} — skipping", file=sys.stderr)
-        return {"linked": {}, "untracked": []}
+        return {"linked": {}, "untracked": []}, "missing"
 
-    tree = ET.parse(p)
+    try:
+        tree = ET.parse(p)
+    except (ET.ParseError, OSError, LookupError, ValueError) as exc:
+        print(f"  ⚠ Invalid JUnit XML {results_file}: {exc} — skipping", file=sys.stderr)
+        return {"linked": {}, "untracked": []}, str(exc)
     root = tree.getroot()
+    if any("{" in el.tag or any("{" in k for k in el.attrib) for el in root.iter()):
+        print(f"  ⚠ Namespaced XML unsupported in {results_file} — skipping", file=sys.stderr)
+        return {"linked": {}, "untracked": []}, "namespaced XML unsupported"
+    if root.tag not in ("testsuite", "testsuites"):
+        print(f"  ⚠ Non-JUnit XML root <{root.tag}> in {results_file} — skipping", file=sys.stderr)
+        return {"linked": {}, "untracked": []}, f"unexpected root <{root.tag}>"
     testcases = root.findall(".//testcase")
 
     sidecar = sidecar or {}
@@ -251,7 +259,23 @@ def parse_junit(results_file: str,
     linked: dict[str, str] = {}
     for tc_id, statuses in tc_results.items():
         linked[tc_id] = max(statuses, key=lambda s: _rank.get(s, 0))
-    return {"linked": linked, "untracked": untracked}
+    return {"linked": linked, "untracked": untracked}, None
+
+
+def parse_junit(results_file: str,
+                sidecar: dict[str, list[str]] | None = None) -> dict:
+    """
+    Parse a JUnit XML file.
+    Returns:
+      {
+        "linked":    {tc_id: status, ...},      # tests registered in sidecar
+        "untracked": [{"name", "classname", "status"}, ...]  # tests with no sidecar entry
+      }
+    A TC appearing in multiple linked tests merges pessimistically:
+      失败 > 阻塞 > 跳过 > 通过.
+    """
+    parsed, _ = _parse_junit_checked(results_file, sidecar)
+    return parsed
 
 
 def _sidecar_path() -> Path:
@@ -644,8 +668,23 @@ def collect_results(suites: list[dict], *, parse_excluded: bool = True,
                 print(f"  ⚠ {suite.get('name', rf)}: results file missing outside matrix gate: {rf}",
                       file=sys.stderr)
             continue
+        parsed, parse_err = _parse_junit_checked(rf, sidecar)
+        if parse_err is not None:
+            if participates_in_matrix_gate:
+                missing_files.append(rf)
+            else:
+                excluded_missing_files.append(rf)
+            if participates_in_matrix_gate and suite_layer in _MATRIX_ENFORCED_LAYERS:
+                missing_layered_files.append(rf)
+                missing_layered_layers.add(suite_layer)
+            if participates_in_matrix_gate:
+                print(f"  ⚠ {suite.get('name', rf)}: corrupt/unreadable JUnit XML ({parse_err}) → suite presumed failed: {rf}",
+                      file=sys.stderr)
+            else:
+                print(f"  ⚠ {suite.get('name', rf)}: corrupt/unreadable JUnit XML outside matrix gate: {rf}",
+                      file=sys.stderr)
+            continue
         parsed_suites += 1
-        parsed = parse_junit(rf, sidecar)
         suite_name = suite.get("name", rf)
         print(f"  {suite_name}: {len(parsed['linked'])} linked, "
               f"{len(parsed['untracked'])} untracked", file=sys.stderr)
@@ -1945,8 +1984,24 @@ def build_minimal_markdown(results: dict, author: str, source: str, version: str
             lines.append(f"| {_md_cell(u.get('suite', ''))} | {_md_cell(test_id)} | {u['status']} |")
         lines.append("")
 
+    missing_files = results.get("missing_files") or []
+    if missing_files:
+        lines += [
+            f"## 🚨 基础设施失败：{len(missing_files)} 个套件无有效 JUnit XML",
+            "",
+            "以下套件缺失或产出损坏的测试结果，上方统计仅覆盖已成功解析的套件：",
+            "",
+        ]
+        for path in missing_files[:10]:
+            lines.append(f"- `{path}`")
+        if len(missing_files) > 10:
+            lines.append(f"- ... 另外 {len(missing_files) - 10} 个")
+        lines.append("")
+
     lines += ["## 发布建议", ""]
-    if counts.get("失败", 0) or counts.get("阻塞", 0):
+    if missing_files:
+        lines.append(f"**❌ 基础设施失败** — {len(missing_files)} 个套件缺失或损坏 JUnit XML，需先修复后再发布。")
+    elif counts.get("失败", 0) or counts.get("阻塞", 0):
         lines.append(f"**⚠️ {counts.get('失败', 0)} 失败 + {counts.get('阻塞', 0)} 阻塞** — 需先解决再发布。")
     elif executed == 0:
         lines.append("**未执行测试** — 无法判断。")
@@ -2240,8 +2295,13 @@ def build_markdown(agg: dict, author: str, source: str, version: str,
     # if it works → cannot recommend release.
     p0_untested = agg["p0_total"] - agg["p0_pass"] - len(agg["p0_blocking"])
 
+    missing_risk_files = (results_for_risk or {}).get("missing_files") if isinstance(results_for_risk, dict) else None
     lines += ["## 发布建议", ""]
-    if agg["p0_blocking"]:
+    if missing_risk_files:
+        lines.append(
+            f"**❌ 不建议发布** — {len(missing_risk_files)} 个套件缺失或损坏 JUnit XML（基础设施失败），需先修复后再发布。"
+        )
+    elif agg["p0_blocking"]:
         lines.append(
             f"**❌ 不建议发布** — {len(agg['p0_blocking'])} 个 P0 用例未通过（失败/阻塞），需先解决后再发布。"
         )
@@ -2432,16 +2492,15 @@ def _exit_with_gate(args: argparse.Namespace, suite_failed: bool,
     aggregation may parse existing XML without running suites in this process):
       - dry-run → never save
       - utility mode (needs_results=False) → never save
-      - missing_files non-empty AND parsed_suites == 0 → INFRA HARD-FAIL:
-        preserve baseline (don't overwrite "nothing ran" on top of a good snapshot)
+      - missing_files non-empty → INFRA HARD-FAIL:
+        preserve baseline (don't overwrite incomplete/missing suite runs on top of a good snapshot)
       - otherwise → save (even an empty `linked` from a project with no markers
         yet is a valid baseline)
     """
     if not args.dry_run and needs_results:
         missing = results.get("missing_files", []) if isinstance(results, dict) else []
-        parsed = results.get("parsed_suites", 0) if isinstance(results, dict) else 0
-        if missing and parsed == 0:
-            print("  ⚠ All configured test suites failed to produce JUnit XML — "
+        if missing:
+            print("  ⚠ Configured test suite(s) failed to produce valid JUnit XML — "
                   "treating as infra failure; preserving previous last-run.json",
                   file=sys.stderr)
         else:

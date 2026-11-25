@@ -5,7 +5,7 @@ test layer) in `SKILL.md`. Load this file whenever the change touches a
 client API-backed surface, mini-program or mobile runtime smoke, device/E2E
 readiness, runtime-client mechanisms, native bridges, app-hosted H5,
 terminal/CLI/TUI runtime tests, or streaming/async finality. Every bullet is an obligation at layer-selection time, not
-optional advice.
+optional advice. Non-negotiable anchors kept in view here: the default three-boundary client split (unit/component + API client/contract + browser/device smoke) applies unless the repository has a stronger convention; runtime-dependent smoke is **blocking** when lower layers cannot prove the changed behavior, and a missing runner after normal remediation stops at `pre-runtime-test-ready` or `blocked` with owner, commands attempted, residual risk, and next unblock action — never converts into a code correctness claim; developer-tool compile/preview is structural evidence only; dangerous or irreversible operations require operator/confirmation/audit/duplicate-submit/final-status assertions before the UI or API is called ready. Build scenario matrices from the reference's reusable dimensions (host/container, identity/permission, data/state, async/finality, visual/interaction, high-consequence); do not paste product-specific matrices into this skill — product-specific lists belong in the project checklist or the owning product/domain skill.
 
 ## Client API-Backed Surfaces: Default Layer Split
 

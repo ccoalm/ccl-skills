@@ -79,7 +79,7 @@ Relocated verbatim from `SKILL.md`'s `Validation & the dual-track gate` Core Rul
 - Record the pressure-test result as one of: `gap found and landed`, `gap found and routed`, `no new gap found`, `blocked/unavailable`, or `static review only`. Only the first three count as behavioral validation.
 - For deep or complete extraction requests, validate against the charter instead of only the changed text: did the extraction cover the declared source boundary and root cause at the declared depth?
 - For design skills, include a pressure scenario that would otherwise pass broad rules but still look mediocre; verify the skill forces layout/state/visual acceptance decisions.
-- For design skills extracted from Figma or frontend code, validate that the skill remains useful without source access and satisfies the executable design checklist in `source-to-skill-extraction.md`.
+- For design skills extracted from Figma or frontend code, validate that the skill remains useful without source access and satisfies the executable design checklist in `design-and-ledger-extraction.md`.
 - For design, UX, frontend/client, product workflow, architecture, or review skills, include a scenario that would tempt the agent to add reasonable but unsourced guidance. Verify the skill forces source refresh, honest coverage labeling, ledger origin checks, or leaves unverified external expertise out of executable guidance.
 - For client development skills, include a pressure scenario that requires analysis, debugging, and testing, not only implementation; verify the skill names the runtime surface checked.
 - For high-impact workflow skills, also ask an independent reviewer or agent to check trigger conflicts, overfitting, missing gates, and duplication.
