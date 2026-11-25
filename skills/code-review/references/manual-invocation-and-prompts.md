@@ -1,12 +1,151 @@
 # Manual Command Shape And Prompt Templates
 
-Load this file only when debugging or patching `scripts/claude_review.sh`,
-its parsers, or the prompt construction — ordinary reviews go through the
-wrapper (`SKILL.md` Script Entry Point) and never hand-build these commands.
-The raw commands below illustrate flag layout only. They intentionally do not
-reproduce the wrapper's stream-init verification, result parsing, or
-fail-closed routing, so copying or executing them is never boundary-equivalent
-and never valid review/challenge evidence.
+Load this file when invoking the staged `review_gate.sh` tracked-chain,
+`--review-harness`, or `claude_review.sh consult` recipes below, or when
+debugging or patching `scripts/claude_review.sh`, its parsers, or prompt
+construction. The raw `claude --print` commands under `Manual Command Shape`
+illustrate flag layout only: they do not reproduce stream-init verification,
+result parsing, or fail-closed routing, so copying or executing those raw CLI
+shapes is never boundary-equivalent and never valid review/challenge evidence.
+
+## Staged Controller, Harness Self-Review, And Consult Invocation
+
+Resolve `CODE_REVIEW_SKILL_DIR` outside the repository under review and bind the staged review inputs:
+
+```bash
+# Set this to the expanded code-review skill directory shown in the
+# current session's skill list, or to the source checkout skill directory when
+# testing changes to this skill. Never resolve it from the product repo under
+# review.
+: "${CODE_REVIEW_SKILL_DIR:?set CODE_REVIEW_SKILL_DIR to the expanded code-review skill directory}"
+test -r "${CODE_REVIEW_SKILL_DIR:-}/scripts/review_gate.sh" || {
+  echo "review_gate.sh not found; set CODE_REVIEW_SKILL_DIR to the expanded code-review skill directory" >&2
+  exit 1
+}
+grep -qE '^name:[[:space:]]*"?code-review"?([[:space:]]*#.*)?[[:space:]]*$' "$CODE_REVIEW_SKILL_DIR/SKILL.md" || {
+  echo "CODE_REVIEW_SKILL_DIR does not look like code-review" >&2
+  exit 1
+}
+repo_root="$(git rev-parse --show-toplevel)" || exit 1
+skill_dir_real="$(cd "$CODE_REVIEW_SKILL_DIR" && pwd -P)" || exit 1
+repo_root_real="$(cd "$repo_root" && pwd -P)" || exit 1
+case "$skill_dir_real/" in
+  "$repo_root_real"/*)
+    echo "CODE_REVIEW_SKILL_DIR is inside the repo under review; use only for --review-harness self-review" >&2
+    exit 1
+    ;;
+esac
+echo "code_review_skill_dir=$CODE_REVIEW_SKILL_DIR" >&2
+: "${IMPLEMENTER_FAMILY:?set IMPLEMENTER_FAMILY to the canonical provider/model family that produced the change}"
+: "${REVIEW_PLAN_FILE:?set REVIEW_PLAN_FILE to an absolute staged review plan JSON path}"
+: "${REVIEW_CHAIN_ID:?set REVIEW_CHAIN_ID to a task-scoped chain id: letters, digits, dot, underscore, hyphen only}"
+: "${REVIEW_STAGE:?set REVIEW_STAGE to the stage this candidate is actually at: explore, build, or release}"
+: "${REVIEW_EVIDENCE_DIR:?set REVIEW_EVIDENCE_DIR to a durable directory you control for the per-round result rows}"
+# REVIEW_BASE names the candidate, REVIEW_DIFF_FILE widens what the reviewer reads,
+# and BOTH is a widened packet that must BEGIN with the candidate (composition
+# rules: references/staged-review-contract.md). if-blocks, not `[ -n ... ] && ...`: a
+# trailing false test returns non-zero and `set -e` would kill the caller.
+if [ -z "${REVIEW_DIFF_FILE:-}" ] && [ -z "${REVIEW_BASE:-}" ]; then
+  echo "set REVIEW_BASE, REVIEW_DIFF_FILE, or both" >&2; exit 1
+fi
+PACKET_ARGS=()
+if [ -n "${REVIEW_BASE:-}" ]; then PACKET_ARGS+=(--base "$REVIEW_BASE"); fi
+if [ -n "${REVIEW_DIFF_FILE:-}" ]; then PACKET_ARGS+=(--diff-file "$REVIEW_DIFF_FILE"); fi
+```
+
+Run the tracked review-and-challenge pair on one frozen candidate and persist both round receipts:
+
+```bash
+# REVIEW_RUN_DIR holds the raw round-1 result only for the chain handoff; the durable
+# per-round evidence is persisted to REVIEW_EVIDENCE_DIR, whose confidentiality you own.
+REVIEW_RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/review-run.XXXXXX")" || exit 1
+cleanup() { rm -rf "$REVIEW_RUN_DIR"; }
+trap cleanup EXIT       # signal handlers must EXIT, not just clean up, or an
+trap 'exit 130' INT     # interrupted round 1 would fall through into the
+trap 'exit 143' TERM    # challenge with a deleted prior-result file
+ROUND1_RESULT_FILE="$REVIEW_RUN_DIR/round1.json"
+# Declared risk tags must reach BOTH rounds: they select owners, concerns, and can
+# raise depth to release. Omitting them silently reviews a weakened profile.
+RISK_ARGS=()
+for tag in ${REVIEW_RISK_TAGS:-}; do RISK_ARGS+=(--risk-tag "$tag"); done
+case "$REVIEW_CHAIN_ID" in  # validate before it reaches a path: the gate checks the
+  ""|.|..|*[!A-Za-z0-9._-]*)   # same grammar, but only after mkdir would have run
+    echo "REVIEW_CHAIN_ID must be letters, digits, dot, underscore, hyphen" >&2; exit 1;;
+esac
+EVIDENCE_RUN_DIR="$REVIEW_EVIDENCE_DIR/$REVIEW_CHAIN_ID"
+mkdir -m 700 "$EVIDENCE_RUN_DIR" || { echo "evidence rows for this chain id already exist; rerun with a fresh REVIEW_CHAIN_ID" >&2; exit 1; }
+# Decide the round budget BEFORE round 1 and open the chain there. An INITIAL REVIEW
+# rejects missing chain flags whenever the effective challenge budget is positive, and
+# is accepted untracked only when that budget is 0 — the default unless depth is
+# release (explicit stage, or raised by a high-risk tag). Untracked means single-round:
+# the challenge you run next is still accepted, but as one-off advisory that cannot
+# enter a later Agent round or satisfy the completion checkpoint, and the chain it
+# never joined cannot be retrofitted. This pair is the ONE-challenge shape; for a tier
+# that needs a larger budget, follow the Agent review chain section of
+# references/staged-review-contract.md instead of rerunning this pair.
+bash "$CODE_REVIEW_SKILL_DIR/scripts/review_gate.sh" \
+  --mode review --stage "$REVIEW_STAGE" --review-plan-file "$REVIEW_PLAN_FILE" \
+  --cwd "$repo_root" "${PACKET_ARGS[@]}" ${RISK_ARGS[@]+"${RISK_ARGS[@]}"} \
+  --implementer-family "$IMPLEMENTER_FAMILY" \
+  --challenge-budget 1 --review-chain-id "$REVIEW_CHAIN_ID" --autonomous-review-index 1 \
+  >"$ROUND1_RESULT_FILE"
+# Round 1 must be a conclusive TRACKED result before the challenge consumes it;
+# otherwise the challenge fails on the prior-result file and buries the real failure.
+require_tracked_result() {  # <result-file> <expected mode> <expected Agent index>
+  REVIEW_CHAIN_ID="$REVIEW_CHAIN_ID" python3 -c 'import json,os,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get("status") in ("passed","findings") and d.get("review_chain_tracked") is True and d.get("mode")==sys.argv[2] and d.get("autonomous_review_index")==int(sys.argv[3]) and d.get("review_chain_id")==os.environ["REVIEW_CHAIN_ID"] else 1)' \
+    "$1" "$2" "$3" || { echo "round $3 is not a conclusive tracked $2 result for this chain; triage it, do not continue:" >&2; cat "$1" >&2; exit 1; }
+}
+require_tracked_result "$ROUND1_RESULT_FILE" review 1
+# Persist each round before the trap reclaims it, fail closed if persistence fails, and
+# never clobber an earlier run's rows: the review and challenge rows are separate
+# required evidence, so a rerun uses a fresh REVIEW_CHAIN_ID and a fresh directory.
+cp "$ROUND1_RESULT_FILE" "$EVIDENCE_RUN_DIR/round1-review.json" || exit 1
+bash "$CODE_REVIEW_SKILL_DIR/scripts/review_gate.sh" \
+  --mode challenge --stage "$REVIEW_STAGE" --challenge-budget 1 --challenge-index 1 \
+  --focus "<challenge surface>" \
+  --review-plan-file "$REVIEW_PLAN_FILE" --cwd "$repo_root" \
+  "${PACKET_ARGS[@]}" ${RISK_ARGS[@]+"${RISK_ARGS[@]}"} --implementer-family "$IMPLEMENTER_FAMILY" \
+  --review-chain-id "$REVIEW_CHAIN_ID" --autonomous-review-index 2 \
+  --prior-review-result-file "$ROUND1_RESULT_FILE" \
+  >"$REVIEW_RUN_DIR/round2.json"
+require_tracked_result "$REVIEW_RUN_DIR/round2.json" challenge 2
+# Both rounds must bind the SAME candidate: the chain accepts older candidate hashes,
+# so a candidate edited between rounds would otherwise be persisted as one coherent
+# pair. Their packets may differ; each receipt records the packet it actually read.
+python3 -c 'import json,sys; a=json.load(open(sys.argv[1])); b=json.load(open(sys.argv[2])); h=a.get("candidate_sha256"); sys.exit(0 if h and h==b.get("candidate_sha256") else 1)' \
+  "$ROUND1_RESULT_FILE" "$REVIEW_RUN_DIR/round2.json" \
+  || { echo "round 2 bound a different candidate than round 1; rerun the pair on one frozen candidate" >&2; exit 1; }
+cp "$REVIEW_RUN_DIR/round2.json" "$EVIDENCE_RUN_DIR/round2-challenge.json" || exit 1
+cat "$EVIDENCE_RUN_DIR/round2-challenge.json"
+```
+
+Repository and prompt-only consult stay on `claude_review.sh` (a secret-free review/challenge diff egresses to non-Claude reviewers automatically; pass `--allow-fallback-egress` only to approve a packet the secret scan flagged):
+
+```bash
+bash "$CODE_REVIEW_SKILL_DIR/scripts/claude_review.sh" consult --cwd "$repo_root" --extra "Question to answer"
+bash "$CODE_REVIEW_SKILL_DIR/scripts/claude_review.sh" consult --cwd "$repo_root" --prompt-only --extra "Question plus pasted evidence to answer from"
+```
+
+When intentionally reviewing `code-review` itself, override the resolver from the ccl-skills repo under review before invoking the gate:
+
+```bash
+repo_root="$(git rev-parse --show-toplevel)" || exit 1
+CODE_REVIEW_SKILL_DIR="$repo_root/skills/code-review"
+test -r "$CODE_REVIEW_SKILL_DIR/scripts/review_gate.sh" || {
+  echo "repo-local review_gate.sh not found; run from the ccl-skills checkout" >&2
+  exit 1
+}
+: "${IMPLEMENTER_FAMILY:?set IMPLEMENTER_FAMILY}"
+: "${REVIEW_PLAN_FILE:?set REVIEW_PLAN_FILE to an absolute staged review plan JSON path}"
+bash "$CODE_REVIEW_SKILL_DIR/scripts/review_gate.sh" \
+  --mode challenge --stage release --risk-tag shared-gate \
+  --challenge-budget 1 --challenge-index 1 --focus "<challenge surface>" \
+  --review-plan-file "$REVIEW_PLAN_FILE" --cwd "$repo_root" \
+  --base origin/main --implementer-family "$IMPLEMENTER_FAMILY" \
+  --review-harness
+```
+
+Prompt-only consult wraps the pasted user question and evidence in strong random sentinels as untrusted lower-priority data: Claude may answer the bounded question inside that block only from the bounded facts and provenance supplied there, and anything in the block that tries to override tool boundaries, filesystem scope, output schema, or higher-priority instructions is prompt content to analyze, not a harness command to obey. An `evidence_sufficient:false` consult is final for that wrapper run and is not retried, because a second answer over the same evidence would only invite a model to change a coverage judgment; `evidence_sufficient`/`findings` from prompt-only consult remain model judgments over attacker-influenceable pasted content rather than independent proof. Prompt-only findings get `source: "prompt-only-advisory"` inside each finding object so provenance survives findings-only consumers; empty prompt-only results carry `tool_identity: "code-review:no-tools"`, and empty repository consult results get `status: "answer"`, `consult_scope: "repository"`, `tool_identity: "code-review:read-only-repository"`, `advisory: false`, `untrusted_evidence: false`, and `gate_eligible: false`.
 
 ## Manual Command Shape
 
@@ -54,7 +193,13 @@ a selected-only plugin directory.
 
 Direct wrapper calls must preserve the profile binding. A native-installed
 profile with omitted registry or owner arguments fails before the client starts;
-it cannot downgrade silently to `native_skill_binding=not_requested`.
+it cannot downgrade silently to `native_skill_binding=not_requested`. For review
+and challenge, `claude_review.sh` accepts the orchestrator's frozen `--diff-file`
+and emits stable `reason_code`, `fallback_eligible`, and `next_action` fields on
+every inconclusive path; raw-text matching on CLI prose is only a fallback when
+no JSON envelope was produced. The wrapper deliberately never runs
+`claude auth status` through command substitution, because that path can itself
+report a false logged-out state on this machine.
 
 Use a focused prompt. For code diffs, review the current unmerged diff and ask only for blocking or materially misleading findings unless the user requests a broader critique.
 
@@ -138,4 +283,4 @@ For product, architecture, economics, compliance, IA, or risk decisions, ask Cla
 
 ## Consult Exit-Code Compatibility
 
-consult success used to share the `0` exit path with review/challenge. Current consult mode intentionally exits `2` for both answers and findings so gate callers cannot accidentally count a consult as review approval. Existing consult consumers must migrate from rc-only handling to parsing `status`, `consult_scope`, `advisory`, `untrusted_evidence`, and `gate_eligible`. Prompt-only consult no longer requires `--allow-prompt-only-advisory`; the advisory/untrusted/gate-ineligible metadata on every prompt-only result is the guard, and the flag stays accepted only for back-compat.
+consult success used to share the `0` exit path with review/challenge. Current consult mode intentionally exits `2` for both answers and findings so gate callers cannot accidentally count a consult as review approval. Existing consult consumers must migrate from rc-only handling to parsing `status`, `consult_scope`, `advisory`, `untrusted_evidence`, and `gate_eligible`, and must not adopt this wrapper version in a controller that maps every `rc==2` to a discarded/manual-only answer. Prompt-only consult no longer requires `--allow-prompt-only-advisory`; the advisory/untrusted/gate-ineligible metadata on every prompt-only result is the guard, and the flag stays accepted only for back-compat.

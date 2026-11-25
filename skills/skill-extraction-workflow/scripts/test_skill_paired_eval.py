@@ -76,6 +76,8 @@ if "--no-session-persistence" not in argv and "no_transcript" not in modes:  # p
         open(os.path.join(project, session + ".jsonl"), "w").write(json.dumps({"type": "user", "prompt": prompt}) + "\n")
     if "foreign_session_file" in modes and not calibration:  # another session of the same project
         open(os.path.join(project, "other-session.jsonl"), "w").write("{}\n")
+if "slow_candidate_init" in modes and "/candidate/" in os.getcwd() and not calibration:
+    time.sleep(0.35)  # killed by sibling's interrupt after creating transcript, before flushing init
 emit({"type": "system", "subtype": "init", "model": opt("--model"), "plugins": plugins,
       "mcp_servers": [], "claude_code_version": "9.9.9",
       "session_id": "*" if "bad_session_id" in modes and not calibration else session})
@@ -825,6 +827,13 @@ class BatchTests(unittest.TestCase):
                 self.assertTrue(json.loads((self.out / "integrity.json").read_text())["unchanged"])
                 self.assertTrue((self.out / "report.md").exists())
                 self.assertEqual(list((self.home / ".claude" / "projects").iterdir()), [])  # killed runs' transcripts too
+        with self.subTest(signal="SIGTERM-before-sibling-init"):
+            self.out = self.tmp / "out-run-pre-init"
+            with self.caught_signals() as (escaped, _):
+                code, err = self.main(env={"FAKE_MODE": "signal_parent,slow_candidate_init", "FAKE_SIGNAL": "SIGTERM"})
+            self.assertEqual((code, escaped), (130, []), err)
+            self.assertEqual(self.records(), [])
+            self.assertEqual(list((self.home / ".claude" / "projects").iterdir()), [])
 
     def test_a_rerun_keeps_other_files_and_records_only_its_own_transcript(self):
         with self.caught_signals():

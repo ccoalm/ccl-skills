@@ -3,7 +3,9 @@
 
 Checks four fast, deterministic invariants on tracked repository state:
 1. Git environment scrub parity across `scripts/select-affected-tests.py`,
-   `skills/code-review/scripts/review_gate.py`, and
+   `skills/code-review/scripts/review_gate.py`,
+   `skills/code-review/scripts/review_diff.py`,
+   `skills/code-review/scripts/review_diff_clients.py`, and
    `skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py`.
 2. Single-source `display()` usage from `scripts/_repo_text.py` across
    `scripts/check-markdown-links.py`, `scripts/check-public-sanitization.py`,
@@ -41,6 +43,8 @@ from _repo_text import display
 GIT_ENV_TARGETS = (
     ("scripts/select-affected-tests.py", "_clean_git_env"),
     ("skills/code-review/scripts/review_gate.py", "git_environment"),
+    ("skills/code-review/scripts/review_diff.py", "git_environment"),
+    ("skills/code-review/scripts/review_diff_clients.py", "git_environment"),
     ("skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py", "git_environment"),
 )
 

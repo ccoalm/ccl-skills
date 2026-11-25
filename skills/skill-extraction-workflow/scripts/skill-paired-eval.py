@@ -1052,19 +1052,27 @@ def agent_command(claude, model, effort, budget, plugin_dir, setting_sources="")
     return cmd
 
 
-def collect_transcripts(stream_path, dest):
+def _project_slug(cwd):
+    return re.sub(r"[^A-Za-z0-9]", "-", cwd)
+
+
+def collect_transcripts(stream_path, dest, cwd=None, interrupted=False):
     """Move the session transcripts Claude Code wrote for this run out of ~/.claude/projects into
-    dest. Only entries named by a session id from this run's own init events are moved, and a
-    project directory is removed only when that leaves it empty. Returns the moved names in two
-    lists: transcripts, which were non-empty regular files when found, and everything else, such
-    as session directories or links, which never count as a persisted transcript."""
+    dest. Only entries named by a session id from this run's own init events are moved (plus, when
+    an interrupt killed the run before its init event flushed, any UUID session entry or empty
+    project directory under this fresh world's own project slug), and a project directory is
+    removed only when that leaves it empty. Returns the moved names in two lists: transcripts,
+    which were non-empty regular files when found, and everything else, such as session
+    directories or links, which never count as a persisted transcript."""
     sessions = set()
+    init_seen = False
     for line in Path(stream_path).read_text(encoding="utf-8", errors="replace").splitlines():
         try:
             event = json.loads(line)
         except ValueError:
             continue
         if isinstance(event, dict) and event.get("type") == "system" and event.get("subtype") == "init":
+            init_seen = True
             session = event.get("session_id")
             if isinstance(session, str) and SESSION_ID.fullmatch(session):
                 sessions.add(session)
@@ -1081,6 +1089,24 @@ def collect_transcripts(stream_path, dest):
                 source.parent.rmdir()
             except OSError:
                 pass  # the project directory still holds other sessions
+    if interrupted and not init_seen and cwd is not None:
+        for raw_cwd in {str(cwd), os.path.realpath(str(cwd))}:
+            project_dir = projects / _project_slug(raw_cwd)
+            if not project_dir.is_dir() or project_dir.is_symlink():
+                continue
+            for source in sorted(project_dir.iterdir()):
+                stem = source.name[:-6] if source.name.endswith(".jsonl") else source.name
+                if not SESSION_ID.fullmatch(stem):
+                    continue
+                real = (source.name == f"{stem}.jsonl" and source.is_file() and not source.is_symlink()
+                        and source.stat().st_size > 0)
+                target = dest / f"transcript-{source.name}"
+                shutil.move(str(source), str(target))
+                (transcripts if real else others).append(target.name)
+            try:
+                project_dir.rmdir()
+            except OSError:
+                pass
     return transcripts, others
 
 
@@ -1098,11 +1124,14 @@ def run_sample(ctx, task, arm, index):
         shutil.copytree(ctx["arm_dirs"][arm], plugin_dir, symlinks=True)
     plan = ctx["plan"]
     cmd = agent_command(ctx["claude"], plan["model"], plan["effort_flag"], plan["max_budget_usd"], plugin_dir)
-    run = run_agent(cmd, task["prompt"], world / task["cwd"], clean_env(gitconfig, sample_dir, agent=True),
+    sample_cwd = world / task["cwd"]
+    run = run_agent(cmd, task["prompt"], sample_cwd, clean_env(gitconfig, sample_dir, agent=True),
                     task["timeout_seconds"], sample_dir / "stream.jsonl", sample_dir / "stderr.txt", ctx)
     if run is None:
         return None  # never started: resume runs it
-    run["transcripts"], run["session_files"] = collect_transcripts(sample_dir / "stream.jsonl", sample_dir)
+    run["transcripts"], run["session_files"] = collect_transcripts(
+        sample_dir / "stream.jsonl", sample_dir, cwd=sample_cwd, interrupted=ctx["interrupted"].is_set()
+    )
     if ctx["interrupted"].is_set():
         return None  # stopped by an interrupt: not an outcome; resume reruns it
     run["export_changes"] = []
@@ -1188,11 +1217,14 @@ def calibrate_canary(ctx):
     env = clean_env(gitconfig, sample_dir, agent=True)
     env.pop("CLAUDE_CODE_DISABLE_CLAUDE_MDS")
     cmd = agent_command(ctx["claude"], ctx["plan"]["model"], None, 1, None, setting_sources="project")
-    run = run_agent(cmd, "Reply with the single word OK.", world / "app", env, 300,
+    cal_cwd = world / "app"
+    run = run_agent(cmd, "Reply with the single word OK.", cal_cwd, env, 300,
                     sample_dir / "stream.jsonl", sample_dir / "stderr.txt", ctx)
     if run is None:
         return None
-    collect_transcripts(sample_dir / "stream.jsonl", sample_dir)
+    collect_transcripts(
+        sample_dir / "stream.jsonl", sample_dir, cwd=cal_cwd, interrupted=ctx["interrupted"].is_set()
+    )
     if ctx["interrupted"].is_set():
         return None
     parsed = parse_stream(sample_dir / "stream.jsonl")

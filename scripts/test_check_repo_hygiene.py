@@ -69,6 +69,8 @@ def _minimal_clean_repo_files() -> dict[str, str | bytes]:
     return {
         "scripts/select-affected-tests.py": _canonical_git_env_file("_clean_git_env"),
         "skills/code-review/scripts/review_gate.py": _canonical_git_env_file("git_environment"),
+        "skills/code-review/scripts/review_diff.py": _canonical_git_env_file("git_environment"),
+        "skills/code-review/scripts/review_diff_clients.py": _canonical_git_env_file("git_environment"),
         "skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py": _canonical_git_env_file(
             "git_environment"
         ),
@@ -143,6 +145,14 @@ def _minimal_clean_repo_files() -> dict[str, str | bytes]:
 
 class RepoHygieneTest(unittest.TestCase):
     def test_current_worktree_satisfies_hygiene_gate(self) -> None:
+        self.assertIn(
+            ("skills/code-review/scripts/review_diff.py", "git_environment"),
+            MODULE.GIT_ENV_TARGETS,
+        )
+        self.assertIn(
+            ("skills/code-review/scripts/review_diff_clients.py", "git_environment"),
+            MODULE.GIT_ENV_TARGETS,
+        )
         proc = subprocess.run(
             [sys.executable, str(SCRIPT), str(REPO_ROOT)],
             capture_output=True,

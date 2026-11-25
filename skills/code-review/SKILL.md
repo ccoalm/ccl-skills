@@ -87,7 +87,7 @@ The shared skill never pins a provider or model. Kimi inherits the user's local 
 
 Client discovery is separate from model ownership. For Kimi, the wrapper accepts an absolute executable `KIMI_BIN`; otherwise it checks `PATH`, then `$KIMI_CODE_HOME/bin/kimi` when configured, then the standard `~/.kimi-code/bin/kimi` location. The resolved executable must be absolute and executable before the wrapper changes directory. This avoids treating a non-interactive shell's narrower `PATH` as proof that Kimi is not installed, honors a custom Kimi home, and avoids relative-PATH drift in the temporary workspace; it does not change the user's model/provider settings. An executable PATH selection keeps normal shell precedence; use `KIMI_BIN` to bypass a broken executable shim explicitly.
 
-The Claude provider wrapper implements help inspection, built-in tool availability restriction, safe-mode customization isolation, strict empty MCP configuration, empty user/project/local setting sources, CLAUDE.md and auto-memory disabling, repository directory scoping with `--add-dir`, consult dirty-worktree fail-closed checks, prompt-only consult for pasted evidence, temp prompt file permissions and cleanup, Python subprocess capture without putting diff content on argv, structured JSON parsing, schema validation, timeout handling, auth false-negative classification, and the two-invocation cap. Runs without selected owner skills pass `--disable-slash-commands` when the CLI offers it. Owner-aware runs load the installed CCL skill plugin through `--plugin-dir` and explicitly invoke each selected skill; they never manufacture a selected-only plugin. If that registry is absent, older than the profile, or unloadable, the run still reviews without owner skills and reports `native_skill_binding=unavailable`. Init's command, skill, and plugin lists are vocabulary the parser never judges; tools, MCP, and permission mode are the isolation proof. For review/challenge it also accepts the orchestrator's frozen `--diff-file` and emits stable `reason_code`, `fallback_eligible`, and `next_action` fields on every inconclusive path. Every mode captures Claude with structured stream JSON and adds `--json-schema` when the CLI advertises it; `parse_review_json.py` unwraps the result event's structured payload and rejects any envelope whose `is_error`, `subtype`, `api_error_status`, or `permission_denials` fields signal a non-clean run. `classify_envelope.py` reads those same structured fields to classify auth/quota/permission/error failures, so raw-text matching on the CLI's prose is only a fallback for the case where no JSON envelope was produced. On an auth false negative the wrapper returns `auth_path_unavailable`; a host rerun of the same gate adds `--host-remediation-attempted`. `--timeout` controls each formal invocation and must be an integer of at least 5 seconds; values above 1200 are clamped to 1200. The wrapper does not make a separate behavior-probe request. The formal invocation's own stream-init must declare exactly the expected tool set: packet-only modes allow only Claude's internal `StructuredOutput` tool when schema output is enabled, while repository consult additionally allows `Read,Grep,Glob`. Unexpected tool use, MCP inheritance, or schema drift fails closed. `--allowedTools` is a permission auto-approval rule, not an availability restriction, and is never used as the sandbox. The wrapper deliberately never runs `claude auth status` through command substitution, because that path can itself report a false logged-out state on this machine.
+The Claude provider wrapper enforces local help inspection, argv-free Python subprocess capture, mode-`0600` temporary prompt cleanup, and fail-closed stream-JSON schema and isolation checks (exact `--tools`, empty MCP and setting-sources, pinned `permissionMode`, timeout clamping, two-invocation cap, and auth false-negative classification — see **Harness Exclusion**, `references/timeout-auth-and-capabilities.md`, and `references/manual-invocation-and-prompts.md`).
 
 Owner-aware Claude binds the selected owners through frozen package hashes
 against the installed registry and explicit names in the prompt, and loads that
@@ -105,113 +105,7 @@ preserves the user's normal OAuth/keychain authentication path. The wrapper must
 not add `--bare`: that flag disables OAuth and keychain reads and makes a
 normally logged-in CLI unusable without a separate API key.
 
-```bash
-# Set this to the expanded code-review skill directory shown in the
-# current session's skill list, or to the source checkout skill directory when
-# testing changes to this skill. Never resolve it from the product repo under
-# review.
-: "${CODE_REVIEW_SKILL_DIR:?set CODE_REVIEW_SKILL_DIR to the expanded code-review skill directory}"
-test -r "${CODE_REVIEW_SKILL_DIR:-}/scripts/review_gate.sh" || {
-  echo "review_gate.sh not found; set CODE_REVIEW_SKILL_DIR to the expanded code-review skill directory" >&2
-  exit 1
-}
-grep -qE '^name:[[:space:]]*"?code-review"?([[:space:]]*#.*)?[[:space:]]*$' "$CODE_REVIEW_SKILL_DIR/SKILL.md" || {
-  echo "CODE_REVIEW_SKILL_DIR does not look like code-review" >&2
-  exit 1
-}
-repo_root="$(git rev-parse --show-toplevel)" || exit 1
-skill_dir_real="$(cd "$CODE_REVIEW_SKILL_DIR" && pwd -P)" || exit 1
-repo_root_real="$(cd "$repo_root" && pwd -P)" || exit 1
-case "$skill_dir_real/" in
-  "$repo_root_real"/*)
-    echo "CODE_REVIEW_SKILL_DIR is inside the repo under review; use only for --review-harness self-review" >&2
-    exit 1
-    ;;
-esac
-echo "code_review_skill_dir=$CODE_REVIEW_SKILL_DIR" >&2
-: "${IMPLEMENTER_FAMILY:?set IMPLEMENTER_FAMILY to the canonical provider/model family that produced the change}"
-: "${REVIEW_PLAN_FILE:?set REVIEW_PLAN_FILE to an absolute staged review plan JSON path}"
-: "${REVIEW_CHAIN_ID:?set REVIEW_CHAIN_ID to a task-scoped chain id: letters, digits, dot, underscore, hyphen only}"
-: "${REVIEW_STAGE:?set REVIEW_STAGE to the stage this candidate is actually at: explore, build, or release}"
-: "${REVIEW_EVIDENCE_DIR:?set REVIEW_EVIDENCE_DIR to a durable directory you control for the per-round result rows}"
-# REVIEW_BASE names the candidate, REVIEW_DIFF_FILE widens what the reviewer reads,
-# and BOTH is a widened packet that must BEGIN with the candidate (composition
-# rules: references/staged-review-contract.md). if-blocks, not `[ -n ... ] && ...`: a
-# trailing false test returns non-zero and `set -e` would kill the caller.
-if [ -z "${REVIEW_DIFF_FILE:-}" ] && [ -z "${REVIEW_BASE:-}" ]; then
-  echo "set REVIEW_BASE, REVIEW_DIFF_FILE, or both" >&2; exit 1
-fi
-PACKET_ARGS=()
-if [ -n "${REVIEW_BASE:-}" ]; then PACKET_ARGS+=(--base "$REVIEW_BASE"); fi
-if [ -n "${REVIEW_DIFF_FILE:-}" ]; then PACKET_ARGS+=(--diff-file "$REVIEW_DIFF_FILE"); fi
-# REVIEW_RUN_DIR holds the raw round-1 result only for the chain handoff; the durable
-# per-round evidence is persisted to REVIEW_EVIDENCE_DIR, whose confidentiality you own.
-REVIEW_RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/review-run.XXXXXX")" || exit 1
-cleanup() { rm -rf "$REVIEW_RUN_DIR"; }
-trap cleanup EXIT       # signal handlers must EXIT, not just clean up, or an
-trap 'exit 130' INT     # interrupted round 1 would fall through into the
-trap 'exit 143' TERM    # challenge with a deleted prior-result file
-ROUND1_RESULT_FILE="$REVIEW_RUN_DIR/round1.json"
-# Declared risk tags must reach BOTH rounds: they select owners, concerns, and can
-# raise depth to release. Omitting them silently reviews a weakened profile.
-RISK_ARGS=()
-for tag in ${REVIEW_RISK_TAGS:-}; do RISK_ARGS+=(--risk-tag "$tag"); done
-case "$REVIEW_CHAIN_ID" in  # validate before it reaches a path: the gate checks the
-  ""|.|..|*[!A-Za-z0-9._-]*)   # same grammar, but only after mkdir would have run
-    echo "REVIEW_CHAIN_ID must be letters, digits, dot, underscore, hyphen" >&2; exit 1;;
-esac
-EVIDENCE_RUN_DIR="$REVIEW_EVIDENCE_DIR/$REVIEW_CHAIN_ID"
-mkdir -m 700 "$EVIDENCE_RUN_DIR" || { echo "evidence rows for this chain id already exist; rerun with a fresh REVIEW_CHAIN_ID" >&2; exit 1; }
-# Decide the round budget BEFORE round 1 and open the chain there. An INITIAL REVIEW
-# rejects missing chain flags whenever the effective challenge budget is positive, and
-# is accepted untracked only when that budget is 0 — the default unless depth is
-# release (explicit stage, or raised by a high-risk tag). Untracked means single-round:
-# the challenge you run next is still accepted, but as one-off advisory that cannot
-# enter a later Agent round or satisfy the completion checkpoint, and the chain it
-# never joined cannot be retrofitted. This pair is the ONE-challenge shape; for a tier
-# that needs a larger budget, follow the Agent review chain section of
-# references/staged-review-contract.md instead of rerunning this pair.
-bash "$CODE_REVIEW_SKILL_DIR/scripts/review_gate.sh" \
-  --mode review --stage "$REVIEW_STAGE" --review-plan-file "$REVIEW_PLAN_FILE" \
-  --cwd "$repo_root" "${PACKET_ARGS[@]}" ${RISK_ARGS[@]+"${RISK_ARGS[@]}"} \
-  --implementer-family "$IMPLEMENTER_FAMILY" \
-  --challenge-budget 1 --review-chain-id "$REVIEW_CHAIN_ID" --autonomous-review-index 1 \
-  >"$ROUND1_RESULT_FILE"
-# Round 1 must be a conclusive TRACKED result before the challenge consumes it;
-# otherwise the challenge fails on the prior-result file and buries the real failure.
-require_tracked_result() {  # <result-file> <expected mode> <expected Agent index>
-  REVIEW_CHAIN_ID="$REVIEW_CHAIN_ID" python3 -c 'import json,os,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get("status") in ("passed","findings") and d.get("review_chain_tracked") is True and d.get("mode")==sys.argv[2] and d.get("autonomous_review_index")==int(sys.argv[3]) and d.get("review_chain_id")==os.environ["REVIEW_CHAIN_ID"] else 1)' \
-    "$1" "$2" "$3" || { echo "round $3 is not a conclusive tracked $2 result for this chain; triage it, do not continue:" >&2; cat "$1" >&2; exit 1; }
-}
-require_tracked_result "$ROUND1_RESULT_FILE" review 1
-# Persist each round before the trap reclaims it, fail closed if persistence fails, and
-# never clobber an earlier run's rows: the review and challenge rows are separate
-# required evidence, so a rerun uses a fresh REVIEW_CHAIN_ID and a fresh directory.
-cp "$ROUND1_RESULT_FILE" "$EVIDENCE_RUN_DIR/round1-review.json" || exit 1
-bash "$CODE_REVIEW_SKILL_DIR/scripts/review_gate.sh" \
-  --mode challenge --stage "$REVIEW_STAGE" --challenge-budget 1 --challenge-index 1 \
-  --focus "<challenge surface>" \
-  --review-plan-file "$REVIEW_PLAN_FILE" --cwd "$repo_root" \
-  "${PACKET_ARGS[@]}" ${RISK_ARGS[@]+"${RISK_ARGS[@]}"} --implementer-family "$IMPLEMENTER_FAMILY" \
-  --review-chain-id "$REVIEW_CHAIN_ID" --autonomous-review-index 2 \
-  --prior-review-result-file "$ROUND1_RESULT_FILE" \
-  >"$REVIEW_RUN_DIR/round2.json"
-require_tracked_result "$REVIEW_RUN_DIR/round2.json" challenge 2
-# Both rounds must bind the SAME candidate: the chain accepts older candidate hashes,
-# so a candidate edited between rounds would otherwise be persisted as one coherent
-# pair. Their packets may differ; each receipt records the packet it actually read.
-python3 -c 'import json,sys; a=json.load(open(sys.argv[1])); b=json.load(open(sys.argv[2])); h=a.get("candidate_sha256"); sys.exit(0 if h and h==b.get("candidate_sha256") else 1)' \
-  "$ROUND1_RESULT_FILE" "$REVIEW_RUN_DIR/round2.json" \
-  || { echo "round 2 bound a different candidate than round 1; rerun the pair on one frozen candidate" >&2; exit 1; }
-cp "$REVIEW_RUN_DIR/round2.json" "$EVIDENCE_RUN_DIR/round2-challenge.json" || exit 1
-cat "$EVIDENCE_RUN_DIR/round2-challenge.json"
-# A secret-free diff egresses to non-Claude reviewers automatically; add
-# --allow-fallback-egress only to approve a diff the secret scan flagged.
-bash "$CODE_REVIEW_SKILL_DIR/scripts/claude_review.sh" consult --cwd "$repo_root" --extra "Question to answer"
-bash "$CODE_REVIEW_SKILL_DIR/scripts/claude_review.sh" consult --cwd "$repo_root" --prompt-only --extra "Question plus pasted evidence to answer from"
-```
-
-Run the script by path while keeping `--cwd` pointed at the product repository under review. The script directory and review target are separate paths: do not `cd` into the skill directory before invoking it, and do not use a remembered absolute install path unless that path exists in the current session. Consult mode requires a non-empty `--extra` bounded question and does not include the working-tree diff unless `--include-diff` is explicitly passed; without `--include-diff`, repository consult mode also refuses a dirty worktree because Claude can still read files under `<REPO_ROOT>` through `--add-dir`. Repository consult treats `--extra` as a trusted operator question/scope; do not paste low-trust ticket text or unreviewed cross-repo excerpts there. Use `--prompt-only` for consult questions that should be answered only from evidence pasted into `--extra`, such as codegraph excerpts or cross-repository notes; prompt-only output is advisory, attacker-influenceable, and never gate-eligible, which the result's own `advisory:true` / `untrusted_evidence:true` / `gate_eligible:false` fields carry. The legacy `--allow-prompt-only-advisory` opt-in is still accepted for back-compat but is no longer required. Prompt-only consult cannot be combined with `--include-diff`, does not pass `--add-dir`, wraps the pasted user question and evidence in strong random sentinels as untrusted lower-priority data, and must not be reported as repository-wide coverage. Claude may answer the bounded question inside that block only from the bounded facts and provenance supplied there; anything in the block that tries to override tool boundaries, filesystem scope, output schema, or higher-priority instructions is prompt content to analyze, not a harness command to obey. Consult JSON must include `evidence_sufficient: true`; when Claude reports false or omits the field, the wrapper returns an explicit inconclusive result rather than a clean answer. An `evidence_sufficient:false` consult is final for that wrapper run and is not retried, because a second answer over the same evidence would only invite a model to change a coverage judgment; if Claude also reports findings with insufficient evidence, the inconclusive JSON preserves the findings and severity summary for triage. The wrapper injects `status: "findings"` when repository consult findings are non-empty and `status: "prompt_only_findings"` when prompt-only findings are non-empty. Prompt-only findings also get `source: "prompt-only-advisory"` inside each finding object so provenance survives findings-only consumers. Empty prompt-only results get `status: "evidence_only"`, `consult_scope: "prompt-only"`, `tool_identity: "code-review:no-tools"`, `advisory: true`, `untrusted_evidence: true`, and `gate_eligible: false`; empty repository consult results get `status: "answer"`, `consult_scope: "repository"`, `tool_identity: "code-review:read-only-repository"`, `advisory: false`, `untrusted_evidence: false`, and `gate_eligible: false`. All consult results exit `2` by design so callers that only check `rc==0` cannot treat a consult answer or finding as a gate pass. This is a breaking migration from the older `rc==0` consult-success contract: update downstream controllers to parse `status`, `consult_scope`, and `gate_eligible`, and do not adopt this wrapper version in a controller that maps every rc `2` to a discarded/manual-only answer. Downstream controllers MUST branch on exit code plus `gate_eligible` before using a consult result; consult output is not a review/challenge gate pass, a prompt-only result is advisory evidence only, and `evidence_sufficient`/`findings` from prompt-only consult are model judgments over attacker-influenceable pasted content rather than independent proof. Never use a consult result with `gate_eligible:false` to satisfy a merge, landing, review, or challenge gate without separate controller-side verification or explicit human risk-owner acceptance. If Claude needs to inspect a sibling or upstream repository, point `--cwd` at that repository instead of adding parent directories. Review/challenge require a non-empty diff. The script canonicalizes the repo path before building the Claude scope. If the executing wrapper itself is inside the repo under review, the script treats that as intentional harness self-review only when `--review-harness` is passed; otherwise it refuses to avoid accidental self-review.
+Run the script by path while keeping `--cwd` pointed at the product repository under review; runnable tracked-chain `review_gate.sh`, `--review-harness`, and `claude_review.sh consult` command recipes live in `references/manual-invocation-and-prompts.md#staged-controller-harness-self-review-and-consult-invocation`. The script directory and review target are separate paths: do not `cd` into the skill directory before invoking it, and do not use a remembered absolute install path unless that path exists in the current session. Consult mode requires a non-empty `--extra` bounded question and excludes the working-tree diff unless `--include-diff` is passed; without `--include-diff`, repository consult refuses a dirty worktree because Claude can read files under `<REPO_ROOT>` through `--add-dir`. Repository consult treats `--extra` as a trusted operator question/scope; do not paste low-trust ticket text or unreviewed cross-repo excerpts there. Use `--prompt-only` (never combined with `--include-diff` or `--add-dir`, never reported as repository-wide coverage) for questions answered solely from pasted evidence; prompt-only output is advisory, attacker-influenceable, and never gate-eligible (`advisory:true`, `untrusted_evidence:true`, `gate_eligible:false`). Consult JSON requires `evidence_sufficient: true` (omitted or `false` returns inconclusive JSON rather than a clean answer while preserving any findings and severity summary for triage; non-retry rationale and wrapper status/provenance fields live in `references/manual-invocation-and-prompts.md#staged-controller-harness-self-review-and-consult-invocation` and `references/timeout-auth-and-capabilities.md`). All consult results exit `2` so `rc==0`-only callers cannot mistake consult output for a gate pass; downstream controllers MUST branch on exit code plus `gate_eligible`, and must never use a `gate_eligible:false` consult result to satisfy a merge, landing, review, or challenge gate without separate controller-side verification or explicit human risk-owner acceptance. If Claude needs to inspect a sibling or upstream repository, point `--cwd` at that repository instead of adding parent directories. Review/challenge require a non-empty diff. The script canonicalizes the repo path before building the Claude scope. If the executing wrapper itself is inside the repo under review, the script treats that as intentional harness self-review only when `--review-harness` is passed; otherwise it refuses to avoid accidental self-review.
 
 **The packet is the reviewer's whole world — compose it deliberately.** Review and challenge are built packet-bounded — Claude runs `--tools ""` with no `--add-dir`, and the other wrappers run in an isolated run workspace or a packet-only read surface. Treat the packet as the reviewer's whole world when deciding coverage: it is the only content bound by the packet hash and scanned before egress, so anything outside it is neither reliably visible to the reviewer nor covered by the verdict; a diff-only packet surfaces defects visible inside the changed lines and little else, and `--paths` only narrows it further. Whatever is absent from the packet is unreachable, not merely missed: a contradiction with an unchanged sibling clause, drift against a carrier outside the diff, or a silent weakening of upstream wording cannot be found by a reviewer who never saw the other side — that is the packet's shape, not the reviewer's weakness.
 
@@ -220,25 +114,6 @@ Run the script by path while keeping `--cwd` pointed at the product repository u
 - A verdict covers exactly the packet it was taken on; the receipt records `packet_sha256` for those bytes and `candidate_sha256` for the base-derived candidate that will land, equal unless the packet was widened. A candidate too large for one packet is split by file group or risk class into a partition that still covers the whole candidate — every part in some packet, none dropped — each partition's verdict recorded against its own packet hash, and the candidate-wide claim withheld until every partition is conclusive; one partition's `no blocking findings` is never a verdict on the landing candidate. Cross-partition contradictions are unreachable by construction, so repeat the shared canonical context in every partition's packet and review anything that spans partitions as its own packet.
 - Added context egresses to the selected reviewer exactly like the diff does, through the same credential tripwire — which catches machine-detectable secrets only. Paste rule text, carriers, and tool output; never paste credentials or material you would not send to that provider.
 - A finding that the input is insufficient to judge the change is an input defect, not a candidate defect: widen the packet and rerun that lane, keeping `--base` so it still binds the same candidate, rather than editing the candidate to satisfy it.
-
-When intentionally reviewing `code-review` itself, override the resolver from the ccl-skills repo under review before invoking the gate:
-
-```bash
-repo_root="$(git rev-parse --show-toplevel)" || exit 1
-CODE_REVIEW_SKILL_DIR="$repo_root/skills/code-review"
-test -r "$CODE_REVIEW_SKILL_DIR/scripts/review_gate.sh" || {
-  echo "repo-local review_gate.sh not found; run from the ccl-skills checkout" >&2
-  exit 1
-}
-: "${IMPLEMENTER_FAMILY:?set IMPLEMENTER_FAMILY}"
-: "${REVIEW_PLAN_FILE:?set REVIEW_PLAN_FILE to an absolute staged review plan JSON path}"
-bash "$CODE_REVIEW_SKILL_DIR/scripts/review_gate.sh" \
-  --mode challenge --stage release --risk-tag shared-gate \
-  --challenge-budget 1 --challenge-index 1 --focus "<challenge surface>" \
-  --review-plan-file "$REVIEW_PLAN_FILE" --cwd "$repo_root" \
-  --base origin/main --implementer-family "$IMPLEMENTER_FAMILY" \
-  --review-harness
-```
 
 When the gate returns `reason_code=auth_path_unavailable` or
 `reason_code=host_path_unavailable` with `next_action=host_retry`, rerun the same
@@ -314,7 +189,7 @@ activation was observed; only a public event/export may populate
 - `references/diff-first-runner.md` — `review_diff.py` options, outcomes and read-only boundary. Load before daily-development review/challenge.
 - `references/staged-review-contract.md` — review-plan schema, stage concerns, high-risk depth, prompt layers, challenge budget. Load before `review_gate.sh` review/challenge.
 - `references/wording-only-review.md` — the proof-bound wording-only single review. Load when claiming it.
-- `references/manual-invocation-and-prompts.md` — manual command shape, filesystem-boundary text, and the review/challenge prompt templates. Load only when debugging or patching the wrapper or its prompt construction.
+- `references/manual-invocation-and-prompts.md` — staged `review_gate.sh` / `--review-harness` / consult command recipes, manual flag layout, filesystem-boundary text, and review/challenge prompt templates; raw CLI shapes must never substitute for the gate wrapper.
 - `references/timeout-auth-and-capabilities.md` — wait-policy timing tables, the numbered auth-recovery procedure, per-mode tool-flag matrix, and CLI capability adoption notes. Load on timeout/auth failures or when maintaining wrapper flag adoption.
 - `references/client-routing.md` — `review_gate.sh` client order, family exclusion, egress, Kimi/Codex boundaries, OpenCode user-model binding, and concurrency rollback. Load when running or diagnosing review/challenge routing.
 

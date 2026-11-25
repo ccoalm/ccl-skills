@@ -23,7 +23,27 @@ note_fail() {
 # Only fakes and the tools the runner needs are on PATH, so no test can reach a
 # real reviewer CLI installed next to python3.
 mkdir -p "$work/sysbin"
-for tool in git python3; do ln -sf "$(command -v "$tool")" "$work/sysbin/$tool"; done
+real_git="$(command -v git)"
+cat >"$work/sysbin/git" <<EOF
+#!/usr/bin/env bash
+for arg in "\$@"; do
+  if [ "\$arg" = "init" ]; then
+    printf '%s\n' "\$*" >>"$work/git-init.log"
+    case "\$*" in
+      *"/opencode-"*) ;;
+      *) printf '%s\n' "\$*" >>"$work/fixture-init.log" ;;
+    esac
+    break
+  fi
+done
+if [ -n "\${GIT_COUNT_LOG:-}" ]; then
+  printf '%s\n' "\$*" >>"\$GIT_COUNT_LOG"
+fi
+exec "$real_git" "\$@"
+EOF
+chmod +x "$work/sysbin/git"
+ln -sf "$(command -v python3)" "$work/sysbin/python3"
+export PATH="$work/sysbin:$PATH"
 # The tests also run timeout and setsid under that PATH. macOS has neither in
 # /usr/bin: take timeout from coreutils (gtimeout under Homebrew) and stand in
 # for setsid with os.setsid, so a fake still starts a new session.
@@ -33,6 +53,8 @@ if [ -z "$timeout_bin" ]; then
   exit 1
 fi
 ln -sf "$timeout_bin" "$work/sysbin/timeout"
+jq_bin="$(command -v jq || true)"
+[ -z "$jq_bin" ] || ln -sf "$jq_bin" "$work/sysbin/jq"
 if setsid_bin="$(command -v setsid)"; then
   ln -sf "$setsid_bin" "$work/sysbin/setsid"
 else
@@ -83,6 +105,7 @@ case "${FAKE_CODEX:-findings}" in
   stderr) printf 'auth expired\n' >&2; exit 1 ;;
   quote) printf '[P1] Remove the hardcoded credential — src/app.py:2\n\nIt sets %s = "%s" and ships %s.\n' "pass""word" "hunt""er2hunter2" "ghp_""abcdefghijklmnopqrstuvwxyz0123456789" >"$out" ;;
   swaplinks) rm -f "$FAKE_REPO/a" "$FAKE_REPO/c"; ln -s x "$FAKE_REPO/a"; ln -s y "$FAKE_REPO/bc"; printf 'No findings.\n' >"$out" ;;
+  newuntracked) printf 'sneak = 1\n' >"$FAKE_REPO/src/sneak.py"; printf 'No findings.\n' >"$out" ;;
   unicode) printf 'more\n' >>"$FAKE_REPO/src/é.py"; printf 'No findings.\n' >"$out" ;;
   commit) git -C "$FAKE_REPO" commit -q --allow-empty -m during; printf 'No findings.\n' >"$out" ;;
   holdpipe) setsid sleep 30 & sleep 30 ;;
@@ -151,7 +174,11 @@ diff_file="$(printf '%s' "${prompt:-}" | grep -o '/[^ `]*\.diff' | head -1)"
 if [ -n "$diff_file" ] && grep -q '^diff --git' "$diff_file" 2>/dev/null; then echo yes >"$FAKE_LOG.kimi.diff"; fi
 # Kimi's stream-json prints one event per message; only the last assistant
 # message is the answer.
-say() { python3 -c 'import json,sys; print(json.dumps({"role": "assistant", "content": sys.argv[1]}))' "$1"; }
+if command -v jq >/dev/null 2>&1; then
+  say() { jq -cn --arg c "$1" '{role: "assistant", content: $c}'; }
+else
+  say() { python3 -c 'import json,sys; print(json.dumps({"role": "assistant", "content": sys.argv[1]}))' "$1"; }
+fi
 printf '{"role": "meta", "type": "system.version", "version": "2"}\n'
 printf '{"role": "assistant", "content": "Let me read the diff.", "tool_calls": [{"type": "function", "id": "t1", "function": {"name": "Read", "arguments": "{}"}}]}\n'
 printf '{"role": "tool", "tool_call_id": "t1", "content": "diff"}\n'
@@ -175,19 +202,24 @@ EOF
   done
 }
 
+template_repo="$work/template-repo"
+make_template_repo() {
+  mkdir -p "$template_repo/src"
+  git -C "$template_repo" init -q -b main
+  git -C "$template_repo" config user.email t@example.com
+  git -C "$template_repo" config user.name t
+  printf 'def get(key):\n    return store[key]\n' >"$template_repo/src/app.py"
+  git -C "$template_repo" add -A
+  git -C "$template_repo" commit -q -m base
+  git -C "$template_repo" branch -q base-ref
+  printf 'def get(key):\n    return store.get(key)\n' >"$template_repo/src/app.py"
+  git -C "$template_repo" commit -q -am change
+}
+
 new_repo() {
   local repo="$work/repo-$1"
   rm -rf "$repo"
-  mkdir -p "$repo/src"
-  git -C "$repo" init -q -b main
-  git -C "$repo" config user.email t@example.com
-  git -C "$repo" config user.name t
-  printf 'def get(key):\n    return store[key]\n' >"$repo/src/app.py"
-  git -C "$repo" add -A
-  git -C "$repo" commit -q -m base
-  git -C "$repo" branch -q base-ref
-  printf 'def get(key):\n    return store.get(key)\n' >"$repo/src/app.py"
-  git -C "$repo" commit -q -am change
+  cp -RP "$template_repo" "$repo"
   printf '%s' "$repo"
 }
 
@@ -206,9 +238,27 @@ run_runner() {
   set -e
 }
 
-field() { python3 -c 'import json,sys; v=json.load(open(sys.argv[1]));
+if [ -n "$jq_bin" ]; then
+  field() {
+    [ -r "$1" ] || return 1
+    "$jq_bin" -r --arg path "$2" '
+      reduce ($path | split("."))[] as $k (.;
+        if . == null then null
+        elif type == "array" then .[$k | tonumber]
+        else .[$k]
+        end
+      )
+      | if . == null then ""
+        elif (type == "boolean" or type == "array" or type == "object") then tojson
+        else tostring
+        end
+    ' "$1"
+  }
+else
+  field() { python3 -c 'import json,sys; v=json.load(open(sys.argv[1]));
 for k in sys.argv[2].split("."): v=v[int(k)] if isinstance(v,list) else v.get(k)
 print("" if v is None else (json.dumps(v) if isinstance(v,(bool,list,dict)) else v))' "$1" "$2"; }
+fi
 
 expect_eq() {
   local name="$1" got="$2" want="$3"
@@ -217,6 +267,7 @@ expect_eq() {
 
 [ -f "$runner" ] || { printf 'FAIL runner missing: %s\n' "$runner" >&2; exit 1; }
 make_fakes
+make_template_repo
 mkdir -p "$work/user-codex-home"
 printf 'model = "m-test"\nmodel_reasoning_effort = "high"\n\n[mcp_servers.danger]\ncommand = "rm"\n\n[profiles.other]\nmodel = "table-model"\n\n[hooks.state."x"]\nenabled = true\n' >"$work/user-codex-home/config.toml"
 printf '{}' >"$work/user-codex-home/auth.json"
@@ -402,7 +453,11 @@ run_runner missing "$repo" --implementer-family kimi
 expect_eq missing-client "$(field "$out" selected_client)" claude
 make_fakes
 
-clients() { python3 -c 'import json,sys; print(",".join(a["client"] for a in json.load(open(sys.argv[1]))["attempts"]))' "$1"; }
+if [ -n "$jq_bin" ]; then
+  clients() { [ -r "$1" ] && "$jq_bin" -r '[.attempts[].client] | join(",")' "$1"; }
+else
+  clients() { python3 -c 'import json,sys; print(",".join(a["client"] for a in json.load(open(sys.argv[1]))["attempts"]))' "$1"; }
+fi
 
 # 9b. A failed reviewer hands over to the next eligible one.
 repo="$(new_repo trynext)"
@@ -699,6 +754,11 @@ repo="$(new_repo commit)"
 FAKE_CODEX=commit run_runner commit "$repo" --implementer-family claude
 expect_eq commit-reason "$(field "$out" reason_code)" candidate_changed
 
+# 10f1b. A brand-new untracked file created during the review changes the candidate.
+repo="$(new_repo newuntracked)"
+FAKE_CODEX=newuntracked run_runner newuntracked "$repo" --implementer-family claude
+expect_eq newuntracked-reason "$(field "$out" reason_code)" candidate_changed
+
 # 10f2. Untracked entries are framed: moving bytes between two links is a change.
 repo="$(new_repo swaplinks)"
 ln -s xb "$repo/a"; ln -s y "$repo/c"
@@ -948,6 +1008,99 @@ rc=$?
 set -e
 expect_eq partial-rc "$rc" 2
 has_line partial-line "$work/stderr-partial" '^review_diff: cannot load review_diff_clients.py'
+
+# 10c2. Ambient GIT_* routing and config-override env vars are scrubbed across
+# candidate binding, OpenCode private git init, and all 4 reviewer child CLIs.
+repo="$(new_repo gitenv)"
+mkdir -p "$work/decoy.git"
+"$real_git" init -q --bare "$work/decoy.git"
+cat >"$work/bin/codex-envcheck" <<'EOF'
+#!/usr/bin/env bash
+printf 'git_dir=%s\ngit_cfg_params=%s\ngit_cfg_count=%s\n' \
+  "${GIT_DIR:-}" "${GIT_CONFIG_PARAMETERS:-}" "${GIT_CONFIG_COUNT:-}" >"$FAKE_LOG.codex.gitenv"
+exit 1
+EOF
+chmod +x "$work/bin/codex-envcheck"
+mv "$work/bin/codex" "$work/bin/codex.orig"
+cp "$work/bin/codex-envcheck" "$work/bin/codex"
+cat >"$work/bin/claude-envcheck" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+printf 'git_dir=%s\ngit_cfg_params=%s\ngit_cfg_count=%s\n' \
+  "${GIT_DIR:-}" "${GIT_CONFIG_PARAMETERS:-}" "${GIT_CONFIG_COUNT:-}" >"$FAKE_LOG.claude.gitenv"
+exit 1
+EOF
+chmod +x "$work/bin/claude-envcheck"
+mv "$work/bin/claude" "$work/bin/claude.orig"
+cp "$work/bin/claude-envcheck" "$work/bin/claude"
+cat >"$work/bin/kimi-envcheck" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+printf 'git_dir=%s\ngit_cfg_params=%s\ngit_cfg_count=%s\n' \
+  "${GIT_DIR:-}" "${GIT_CONFIG_PARAMETERS:-}" "${GIT_CONFIG_COUNT:-}" >"$FAKE_LOG.kimi.gitenv"
+exit 1
+EOF
+chmod +x "$work/bin/kimi-envcheck"
+mv "$work/bin/kimi" "$work/bin/kimi.orig"
+cp "$work/bin/kimi-envcheck" "$work/bin/kimi"
+cat >"$work/bin/opencode-envcheck" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+oc_args=("$@")
+for ((i = 0; i < ${#oc_args[@]}; i++)); do
+  [ "${oc_args[$i]}" = "--dir" ] && oc_dir="${oc_args[$((i + 1))]}"
+done
+printf 'git_dir=%s\ngit_cfg_params=%s\ngit_cfg_key0=%s\ntoplevel=%s\n' \
+  "${GIT_DIR:-}" "${GIT_CONFIG_PARAMETERS:-}" "${GIT_CONFIG_KEY_0:-}" \
+  "$(git -C "${oc_dir:-/nonexistent}" rev-parse --show-toplevel 2>/dev/null)" >"$FAKE_LOG.opencode.gitenv"
+printf 'No findings.\n'
+EOF
+chmod +x "$work/bin/opencode-envcheck"
+mv "$work/bin/opencode" "$work/bin/opencode.orig"
+cp "$work/bin/opencode-envcheck" "$work/bin/opencode"
+GIT_DIR="$work/decoy.git" \
+GIT_WORK_TREE="$work/notrepo" \
+GIT_INDEX_FILE="$work/decoy.git/index" \
+GIT_EXTERNAL_DIFF=/bin/false \
+GIT_CONFIG_PARAMETERS="'diff.external=/bin/false'" \
+GIT_CONFIG_COUNT=1 \
+GIT_CONFIG_KEY_0=core.fsmonitor \
+GIT_CONFIG_VALUE_0=/bin/false \
+  run_runner gitenv "$repo" --implementer-family gemini --client-order codex,claude,kimi,opencode
+mv "$work/bin/codex.orig" "$work/bin/codex"
+mv "$work/bin/claude.orig" "$work/bin/claude"
+mv "$work/bin/kimi.orig" "$work/bin/kimi"
+mv "$work/bin/opencode.orig" "$work/bin/opencode"
+expect_eq gitenv-rc "$rc" 0
+expect_eq gitenv-status "$(field "$out" status 2>/dev/null || true)" passed
+expect_eq gitenv-head "$(field "$out" head 2>/dev/null || true)" "$("$real_git" -C "$repo" rev-parse HEAD)"
+expect_eq gitenv-codex-dir "$(sed -n 's/^git_dir=//p' "$FAKE_LOG.codex.gitenv" 2>/dev/null || echo missing)" ""
+expect_eq gitenv-codex-params "$(sed -n 's/^git_cfg_params=//p' "$FAKE_LOG.codex.gitenv" 2>/dev/null || echo missing)" ""
+expect_eq gitenv-codex-count "$(sed -n 's/^git_cfg_count=//p' "$FAKE_LOG.codex.gitenv" 2>/dev/null || echo missing)" ""
+expect_eq gitenv-claude-dir "$(sed -n 's/^git_dir=//p' "$FAKE_LOG.claude.gitenv" 2>/dev/null || echo missing)" ""
+expect_eq gitenv-claude-params "$(sed -n 's/^git_cfg_params=//p' "$FAKE_LOG.claude.gitenv" 2>/dev/null || echo missing)" ""
+expect_eq gitenv-claude-count "$(sed -n 's/^git_cfg_count=//p' "$FAKE_LOG.claude.gitenv" 2>/dev/null || echo missing)" ""
+expect_eq gitenv-kimi-dir "$(sed -n 's/^git_dir=//p' "$FAKE_LOG.kimi.gitenv" 2>/dev/null || echo missing)" ""
+expect_eq gitenv-kimi-params "$(sed -n 's/^git_cfg_params=//p' "$FAKE_LOG.kimi.gitenv" 2>/dev/null || echo missing)" ""
+expect_eq gitenv-kimi-count "$(sed -n 's/^git_cfg_count=//p' "$FAKE_LOG.kimi.gitenv" 2>/dev/null || echo missing)" ""
+expect_eq gitenv-oc-dir "$(sed -n 's/^git_dir=//p' "$FAKE_LOG.opencode.gitenv" 2>/dev/null || echo missing)" ""
+expect_eq gitenv-oc-params "$(sed -n 's/^git_cfg_params=//p' "$FAKE_LOG.opencode.gitenv" 2>/dev/null || echo missing)" ""
+expect_eq gitenv-oc-key0 "$(sed -n 's/^git_cfg_key0=//p' "$FAKE_LOG.opencode.gitenv" 2>/dev/null || echo missing)" ""
+[ -n "$(sed -n 's/^toplevel=//p' "$FAKE_LOG.opencode.gitenv" 2>/dev/null || true)" ] || note_fail gitenv-oc-toplevel "private opencode git init failed under poisoned GIT_DIR"
+
+# 14j. Subprocess and fixture efficiency: single clean review_diff.py run spawns
+# <=10 git calls, and the whole suite clones one template repo (<=2 non-opencode
+# fixture git init calls: template-repo + decoy.git).
+repo="$(new_repo gitcount)"
+: >"$work/git-single.log"
+GIT_COUNT_LOG="$work/git-single.log" FAKE_CODEX=passed run_runner gitcount "$repo" --implementer-family claude --client-order codex
+expect_eq gitcount-rc "$rc" 0
+single_git_calls="$(wc -l <"$work/git-single.log" | tr -d ' ')"
+[ "$single_git_calls" -le 10 ] || note_fail gitcount-single "expected <=10 git calls on clean run, got $single_git_calls"
+fixture_init_calls="$(wc -l <"$work/fixture-init.log" | tr -d ' ')"
+[ "$fixture_init_calls" -le 2 ] || note_fail gitcount-init "expected <=2 fixture git init calls across suite (template-repo clone), got $fixture_init_calls"
+suite_init_calls="$(wc -l <"$work/git-init.log" | tr -d ' ')"
+[ "$suite_init_calls" -le 22 ] || note_fail gitcount-suite-init "expected <=22 total git init calls across suite, got $suite_init_calls"
 
 if [ "$fail" -ne 0 ]; then
   exit 1

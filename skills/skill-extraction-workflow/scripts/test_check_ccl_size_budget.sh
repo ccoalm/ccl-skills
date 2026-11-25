@@ -1045,6 +1045,28 @@ assert_rc "$rc" 0 "a CR-delimited reference at the budget still lands"
 assert_contains "reference_line_budget_blocking_ok" "$out" "boundary holds under CR line endings"
 rm -f "$REF_REPO/skills/demo-skill/references/cr-only.md"
 
+# Case g10b: a CR-delimited over-budget reference committed in BASE must count
+# identically in base_ref_over_count and head_ref_over_count (delta=+0 on an
+# untouched branch), never as 1 line under raw newline-only git grep.
+git -C "$REF_REPO" checkout -qb cr-base-main
+python3 - "$REF_REPO/skills/demo-skill/references/cr-base-legacy.md" <<'PY'
+import sys
+open(sys.argv[1], "wb").write(b"\r".join(b"line %d" % i for i in range(501)) + b"\r")
+PY
+git -C "$REF_REPO" add -A
+git -C "$REF_REPO" commit -qm "land 501-line CR-only legacy reference in base"
+git -C "$REF_REPO" checkout -qb cr-base-feature
+set +e
+out="$(CCL_SKILL_BASE_REF=cr-base-main bash "$SIZE_SCRIPT" "$REF_REPO" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 0 "untouched CR-only legacy reference on base must pass"
+assert_contains "reference_line_over_limit_count_base=2" "$out" "CR-only base reference counted alongside LF legacy.md"
+assert_contains "reference_line_over_limit_count_head=2" "$out" "CR-only head reference counted identically"
+assert_contains "reference_line_over_limit_count_delta=+0" "$out" "untouched CR-only legacy reference has +0 delta"
+git -C "$REF_REPO" checkout -q feature
+git -C "$REF_REPO" branch -Dq cr-base-feature cr-base-main
+
 # Case g11: an unreadable reference degrades the CENSUS COUNTER to unknown and
 # says so, instead of silently counting it as within budget or aborting the whole
 # program before the per-file verdicts run. Running as root defeats chmod, so the
@@ -1104,11 +1126,13 @@ set -e
 assert_rc "$batch_rc" 0 "batched git run on REF_REPO must pass"
 assert_contains "entrypoint_size_blocking_ok" "$batch_out" "batched run keeps blocking_ok token"
 show_calls="$(grep -c ' show ' "$GIT_LOG" || true)"
+grep_calls="$(grep -c ' grep ' "$GIT_LOG" || true)"
 worktree_probes="$(grep -c 'rev-parse --show-toplevel' "$GIT_LOG" || true)"
 total_git_calls="$(wc -l < "$GIT_LOG" | tr -d ' ')"
 [ "$show_calls" -eq 0 ] || fail "expected 0 'git show' calls (use cat-file --batch), got $show_calls"
+[ "$grep_calls" -eq 0 ] || fail "expected 0 'git grep' calls (use base_oids + ref_info_for_text), got $grep_calls"
 [ "$worktree_probes" -eq 1 ] || fail "expected 1 'rev-parse --show-toplevel' probe, got $worktree_probes"
-[ "$total_git_calls" -le 12 ] || fail "expected <=12 total git calls on clean tree, got $total_git_calls"
+[ "$total_git_calls" -le 8 ] || fail "expected <=8 total git calls on clean tree, got $total_git_calls"
 
 # Case h2: an exported skill tree unpacked INSIDE an enclosing git checkout is
 # not a git worktree root; check-size-budget.sh must treat it as non-git
