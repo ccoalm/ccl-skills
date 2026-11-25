@@ -156,8 +156,27 @@ Every modified and newly created Markdown file across `skill-extraction-workflow
   - `CCL_BROAD_TEST_REASON=repo-required npm --prefix packages/ccl-skills-npm test && CCL_BROAD_TEST_REASON=repo-required npm --prefix packages/ccl-skills-npm run test:pack` -> `passed`
   - `bash scripts/test_public_sanitization_leak_cases.sh && bash skills/skill-extraction-workflow/scripts/test_check_evidence_card_leak_cache.sh && bash skills/skill-extraction-workflow/scripts/test_generic_r0_leak_scan.sh` -> `passed`
   - `ALIAS_AUDIT_CMD` via `check-ccl-skills.sh` (`process-retro + 12 alias files`) -> `alias_audit_ok`, `r0_status=private-ok`, `ccl_skill_check_clean_ok`
+- **Final-candidate lane rows (`1ddfdc5`, the §3b replacement commit; `umask 0022`, `CCL_BROAD_TEST_REASON=repo-required`, private alias audit exported)**:
+  - These rows supersede the matrix above for the final candidate.
+  - Commands run:
+    - `make test-repo-gates` -> `rc=0`
+    - `make test-regressions-fast` -> `rc=0`
+    - `make test-code-review-1` -> `rc=0`
+    - `make test-code-review-2` -> `rc=0`
+    - `make test-code-review-abort-leak-1` -> `rc=0`
+    - `make test-code-review-abort-leak-2` -> `rc=0` (both abort-leak legs under `unshare --user --map-current-user --pid --fork --mount-proc`, so orphans reparent to PID 1 as the probe requires)
+    - `test_check_ccl_regressions.sh --heavy-only` -> `rc=0`
+    - `check-skill-count.py` -> `rc=0`
+    - `check-ccl-skills.sh` -> `ccl_skill_check_clean_ok` / `r0_status=private-ok`
+  - The worktree was clean before and after the run.
+  - Skipped: `npm --prefix packages/ccl-skills-npm test` / `test:pack`. This branch changes nothing under `packages/`, and the repository contract runs them only for `packages/` changes.
 
 ## 6. Gate & Independent Dual-Track Review Ledger
 
 - **Private R0 audit**: `alias_audit_ok` / `r0_status=private-ok` / `ccl_skill_check_clean_ok`.
-- **Boundary acceptance (`extraction_review_gate.sh` across `< 200,000`-byte `--paths` partitions)**: `pending` (recorded upon completion of review, challenge, and delta passes).
+- **Persisted receipts** (`specs/attention-budget-batch-2b/evidence/reviews/`): 27 conclusive controller envelopes, all `status: findings`, reviewer `codex`. Every P0/P1 was dispositioned in the round that followed it.
+  - `p1`–`p5` `-review.json` / `-challenge.json`: partition review and challenge.
+  - `delta1-*` … `delta6-review.json`: the batched delta passes. Each one still reported P0/P1 findings.
+  - `replacement-review.json` / `replacement-challenge.json` / `replacement-delta-review.json`: review, challenge and incremental re-review of the §3b replacement. Their findings were 2 P1 + 2 P2, then 1 P1 + 2 P2, then 0 P0/P1 + 4 P2, all fixed or dispositioned in §3b.
+- **Per-file convergence check**: before the replacement, P0/P1 findings were tallied by file across all 24 earlier receipts. Only `test-public-data-acquisition-recipes.sh` drew a fence-class P0/P1 in every delta round from `delta2` to `delta6`. `governing-chain-diff.py` had fence-class findings in `p1` and `delta1`–`delta3` and none in the whole-tree passes `delta4`–`delta6`, so it is kept. Its hand-written fence tracking remains a residual risk, and the same carrier-narrowing option is available if a new finding appears.
+- **Boundary acceptance**: review, challenge and the incremental re-review converged with no undispositioned P0/P1 on `1ddfdc5`. PR CI is pending.
