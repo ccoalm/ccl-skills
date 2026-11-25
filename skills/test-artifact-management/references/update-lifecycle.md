@@ -56,7 +56,7 @@ python test/scripts/gen_report.py \
 
 ### JUnit XML 异常与基线快照保护
 
-- **JUnit XML 损坏防覆盖**：`gen_report.py` 解析套件结果遇到截断、非法/不支持的多字节编码、元素或属性带 XML 命名空间或非 `testsuite`/`testsuites` 根节点 XML 时，必须按基础设施失败记录缺失套件并保留既有 `last-run.json` 基线，不得覆盖完整快照（精简模式与完整 Bitable 模式一致）
+- **JUnit XML 损坏防覆盖**：`gen_report.py` 解析纳入门禁的套件结果（默认 `matrix_gate: true`）遇到截断、非法/不支持的多字节编码、元素或属性带 XML 命名空间或非 `testsuite`/`testsuites` 根节点 XML 时，必须按基础设施失败记录缺失套件并保留既有 `last-run.json` 基线，不得覆盖完整快照（精简模式与完整 Bitable 模式一致）；显式配置为 `matrix_gate: false` 的门禁外套件仅记入 `excluded_missing_files` 并输出 `outside matrix gate` 告警，不得计入门禁缺失套件或误阻断其余有效门禁套件更新快照
 
 ## update 工作流
 

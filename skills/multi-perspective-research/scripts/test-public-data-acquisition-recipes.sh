@@ -30,28 +30,119 @@ import os,re,sys
 doc,work=sys.argv[1],sys.argv[2]
 expected_ids=[s for s in os.environ.get("EXPECTED_MANIFEST_IDS","").split(",") if s]
 t=open(doc,encoding='utf-8').read()
-# 枚举所有 CommonMark fence（含引用块 > 与列表项容器前缀、0..3 空格缩进、3+ 反引号或波浪线）。
+# 枚举所有 CommonMark fence（跨行追踪引用块 > 与列表项容器缩进、缩进回退闭合、0..3 空格缩进、3+ 反引号或波浪线）。
 blocks=[]
-_cpfx=re.compile(r'^(?:[ \t]{0,3}>[ \t]?|[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+)*')
-_qonly=re.compile(r'^(?:[ \t]{0,3}>[ \t]?)*')
+_tbreak=re.compile(r'^[ \t]{0,3}(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})$')
+_litem=re.compile(r'^([ \t]{0,3})(?:[-*+]|\d{1,9}[.)])(?:([ \t]+)(.*))?$')
 _fopen=re.compile(r'^([ \t]*)(\`{3,}|~{3,})([^\r\n]*)$')
-_fclose=None; _flang=''; _fbuf=[]
+def _adv_cols(s, target):
+    col=0; i=0; n=len(s)
+    while i<n and col<target:
+        if s[i]==' ':
+            col+=1; i+=1
+        elif s[i]=='\t':
+            nc=col+(4-(col%4))
+            if nc>target:
+                return ' '*(nc-target)+s[i+1:]
+            col=nc; i+=1
+        else:
+            return None
+    return s[i:] if col>=target else None
+def _lead_cols(s):
+    col=0
+    for ch in s:
+        if ch==' ': col+=1
+        elif ch=='\t': col+=4-(col%4)
+        else: break
+    return col
+containers=[]
+_fclose=None; _flang=''; _fbuf=[]; _fcdepth=0; _findent=0
 for _ln in t.splitlines(keepends=True):
     _stripped=_ln.rstrip('\r\n')
-    if _fclose is not None:
-        _qrest=_qonly.sub('',_stripped,count=1)
-        if _fclose.match(_qrest):
-            blocks.append((_flang,''.join(_fbuf))); _fclose=None; _fbuf=[]
+    _eol=_ln[len(_stripped):]
+    _rem=_stripped
+    _matched=0
+    _limit=_fcdepth if _fclose is not None else len(containers)
+    while _matched<_limit:
+        _c=containers[_matched]
+        if _c[0]=='quote':
+            _lc=_lead_cols(_rem)
+            if _lc<=3:
+                _after_sp=_rem.lstrip(' \t')
+                if _after_sp.startswith('>'):
+                    _qrem=_after_sp[1:]
+                    if _qrem.startswith(' '):
+                        _qrem=_qrem[1:]
+                    elif _qrem.startswith('\t'):
+                        _qrem=' '*(4-((_lc+1)%4)-1)+_qrem[1:]
+                    _rem=_qrem; _matched+=1; continue
+            break
         else:
-            _fbuf.append(_ln)
-        continue
-    _has_container=bool(_cpfx.match(_stripped).group(0))
-    _crest=_cpfx.sub('',_stripped,count=1)
-    _m=_fopen.match(_crest)
-    if _m and (_has_container or len(_m.group(1).expandtabs(4))<=3) and not (_m.group(2)[0]=='`' and '`' in _m.group(3)):
+            if not _rem.strip(' \t'):
+                if _c[2]:
+                    break
+                _rem=''; _matched+=1; continue
+            _next=_adv_cols(_rem, _c[1])
+            if _next is not None:
+                _c[2]=False; _rem=_next; _matched+=1; continue
+            break
+    if _fclose is not None:
+        if _matched<_fcdepth:
+            blocks.append((_flang,''.join(_fbuf))); _fclose=None; _fbuf=[]
+            del containers[_matched:]
+        else:
+            _mc=_fclose.match(_rem)
+            if _mc and _lead_cols(_mc.group(1))<=3:
+                blocks.append((_flang,''.join(_fbuf))); _fclose=None; _fbuf=[]
+                continue
+            if _findent>0:
+                _srem=_rem; _sc=0
+                while _sc<_findent and _srem.startswith(' '):
+                    _srem=_srem[1:]; _sc+=1
+                _fbuf.append(_srem+_eol)
+            else:
+                _fbuf.append(_rem+_eol)
+            continue
+    else:
+        del containers[_matched:]
+    while True:
+        _lc=_lead_cols(_rem)
+        if _lc<=3:
+            _after_sp=_rem.lstrip(' \t')
+            if _after_sp.startswith('>'):
+                _qrem=_after_sp[1:]
+                if _qrem.startswith(' '):
+                    _qrem=_qrem[1:]
+                elif _qrem.startswith('\t'):
+                    _qrem=' '*(4-((_lc+1)%4)-1)+_qrem[1:]
+                containers.append(['quote'])
+                _rem=_qrem
+                continue
+        if _tbreak.match(_rem):
+            break
+        _mi=_litem.match(_rem)
+        if _mi:
+            _mbody=_mi.group(3) if _mi.group(2) is not None else ''
+            if not _mbody.strip(' \t'):
+                _mpfx=_rem.rstrip(' \t')
+                _mbase=len(_mpfx.expandtabs(4))+1
+                containers.append(['list', _mbase, True])
+                _rem=''
+                break
+            _mpfx=_rem[:_mi.start(3)].rstrip(' \t')
+            _mbase=len(_mpfx.expandtabs(4))+1
+            _fcol=len(_rem[:_mi.start(3)].expandtabs(4))
+            _cind=_mbase if (_fcol-_mbase>3) else _fcol
+            containers.append(['list', _cind, False])
+            _rem=_adv_cols(_rem, _cind) or ''
+            continue
+        break
+    _m=_fopen.match(_rem)
+    if _m and _lead_cols(_m.group(1))<=3 and not (_m.group(2)[0]=='`' and '`' in _m.group(3)):
         _ch=_m.group(2)[0]; _n=len(_m.group(2))
-        _fclose=re.compile(rf'^[ \t]*{re.escape(_ch)}{{{_n},}}[ \t]*$')
+        _fclose=re.compile(rf'^([ \t]*){re.escape(_ch)}{{{_n},}}[ \t]*$')
         _flang=_m.group(3).strip(); _fbuf=[]
+        _fcdepth=len(containers); _findent=_lead_cols(_m.group(1))
 if _fclose is not None:
     blocks.append((_flang,''.join(_fbuf)))
 
@@ -156,6 +247,59 @@ if [ "$lm_rc" -eq 1 ] && grep -qF "未登记的可运行块" <<<"$lm_out"; then
   ok "块清单能报列表标记行未登记代码块"
 else
   bad "块清单能报列表标记行未登记代码块" "rc=$lm_rc out=$lm_out"
+fi
+cp "$DOC" "$WORK/list-continuation-fence.md"
+cat >> "$WORK/list-continuation-fence.md" <<'BAD'
+
+100. Instructions
+
+     ```bash
+     echo "unregistered ordered-list continuation fence"
+     ```
+BAD
+lc_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/list-continuation-fence.md" "$WORK/negative-extract" 2>&1)
+lc_rc=$?
+if [ "$lc_rc" -eq 1 ] && grep -qF "未登记的可运行块" <<<"$lc_out"; then
+  ok "块清单能报有序列表续行未登记代码块"
+else
+  bad "块清单能报有序列表续行未登记代码块" "rc=$lc_rc out=$lc_out"
+fi
+cp "$DOC" "$WORK/list-dedent-fence.md"
+cat >> "$WORK/list-dedent-fence.md" <<'BAD'
+
+100. Instructions
+
+     ```bash
+     echo "unclosed continuation fence closed by dedent"
+Outside paragraph closes the list-nested fence.
+BAD
+ld_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/list-dedent-fence.md" "$WORK/negative-extract" 2>&1)
+ld_rc=$?
+if [ "$ld_rc" -eq 1 ] && grep -qF "未登记的可运行块" <<<"$ld_out"; then
+  ok "块清单能报缩进回退闭合的列表代码块"
+else
+  bad "块清单能报缩进回退闭合的列表代码块" "rc=$ld_rc out=$ld_out"
+fi
+cp "$DOC" "$WORK/indented-code-control.md"
+cat >> "$WORK/indented-code-control.md" <<'GOOD'
+
+-     ```bash
+      echo "5-space indented code on list-marker line is not a runnable fence"
+      ```
+
+Root paragraph closes the list before root-level indented code.
+
+    ```bash
+    echo "4-space root indented code is not a runnable fence"
+    ```
+GOOD
+mkdir -p "$WORK/indented-extract"
+ic_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/indented-code-control.md" "$WORK/indented-extract" 2>&1)
+ic_rc=$?
+if [ "$ic_rc" -eq 0 ] && grep -qF "块清单：共 12 个" <<<"$ic_out"; then
+  ok "块清单不误报 4+ 空格缩进代码块"
+else
+  bad "块清单不误报 4+ 空格缩进代码块" "rc=$ic_rc out=$ic_out"
 fi
 empty_inv_out=$(EXPECTED_MANIFEST_IDS="" python3 "$WORK/check-block-manifest.py" "$DOC" "$WORK/negative-extract" 2>&1)
 empty_inv_rc=$?
@@ -378,29 +522,57 @@ rc_unset=$( set -u
             OUT="" fetch "$WORK/outside-empty.json" 'https://x/data' >/dev/null 2>&1 && exit 93
             echo 0 )
 check "set -u 下 unset/空 OUT 默认当前目录且拦外部路径" "$rc_unset" 0
-rc_dirrace=$( export PATH="$WORK/bin:$PATH" UA="t t@example.invalid"
+REAL_PY_BIN=$(command -v python3)
+REAL_LN_BIN=$(command -v ln)
+mkdir -p "$WORK/race-bin"
+cat > "$WORK/race-bin/python3" <<'SHIM'
+#!/usr/bin/env bash
+if [ -n "${RACE_TARGET:-}" ] && [ "${1:-}" = "-c" ] && [ "${4:-}" = "$RACE_TARGET" ]; then
+  if [ "${RACE_KIND:-}" = "dir" ]; then
+    mkdir -p -- "$RACE_TARGET" && : > "$RACE_MARKER"
+  elif [ "${RACE_KIND:-}" = "dirlink" ]; then
+    "$REAL_LN_BIN" -s -- "$RACE_LINK_DST" "$RACE_TARGET" && : > "$RACE_MARKER"
+  fi
+fi
+exec "$REAL_PY_BIN" "$@"
+SHIM
+cat > "$WORK/race-bin/ln" <<'SHIM'
+#!/usr/bin/env bash
+last_arg=""
+for arg in "$@"; do last_arg=$arg; done
+if [ -n "${RACE_TARGET:-}" ] && [ "$last_arg" = "$RACE_TARGET" ]; then
+  if [ "${RACE_KIND:-}" = "dir" ]; then
+    mkdir -p -- "$RACE_TARGET" && : > "$RACE_MARKER"
+  elif [ "${RACE_KIND:-}" = "dirlink" ]; then
+    "$REAL_LN_BIN" -s -- "$RACE_LINK_DST" "$RACE_TARGET" && : > "$RACE_MARKER"
+  fi
+fi
+exec "$REAL_LN_BIN" "$@"
+SHIM
+chmod +x "$WORK/race-bin/python3" "$WORK/race-bin/ln"
+rc_dirrace=$( export PATH="$WORK/race-bin:$WORK/bin:$PATH" UA="t t@example.invalid"
+              export REAL_PY_BIN REAL_LN_BIN RACE_KIND="dir" RACE_TARGET="$WORK/run/became-dir" RACE_MARKER="$WORK/race-dir.injected"
               cd "$WORK/run" || exit 9
               # shellcheck disable=SC1090
               . "$WORK/fetch.sh" >/dev/null 2>&1
-              eval "orig_accept() $(declare -f accept | tail -n +2)"
-              accept() { orig_accept "$1" && mkdir "$WORK/run/became-dir"; }
               OUT=$PWD; export OUT
               fetch "$WORK/run/became-dir" 'https://x/data' >/dev/null 2>&1
               rc=$?
               printf '%s:%s\n' "$rc" "$FETCHED" )
+check "发布入口目录竞态注入已触发" "$([ -e "$WORK/race-dir.injected" ] && echo injected || echo missed)" injected
 check "链接边界目标变为目录时返回 2 且 FETCHED=0" "$rc_dirrace" "2:0"
 check "链接边界新建目录内未被链入 .part" "$(find "$WORK/run/became-dir" -mindepth 1 | wc -l | tr -d ' ')" 0
 mkdir -p "$WORK/ext-linkdir"
-rc_dirlink=$( export PATH="$WORK/bin:$PATH" UA="t t@example.invalid"
+rc_dirlink=$( export PATH="$WORK/race-bin:$WORK/bin:$PATH" UA="t t@example.invalid"
+              export REAL_PY_BIN REAL_LN_BIN RACE_KIND="dirlink" RACE_TARGET="$WORK/run/became-dirlink" RACE_LINK_DST="$WORK/ext-linkdir" RACE_MARKER="$WORK/race-link.injected"
               cd "$WORK/run" || exit 9
               # shellcheck disable=SC1090
               . "$WORK/fetch.sh" >/dev/null 2>&1
-              eval "orig_accept() $(declare -f accept | tail -n +2)"
-              accept() { orig_accept "$1" && ln -s "$WORK/ext-linkdir" "$WORK/run/became-dirlink"; }
               OUT=$PWD; export OUT
               fetch "$WORK/run/became-dirlink" 'https://x/data' >/dev/null 2>&1
               rc=$?
               printf '%s:%s\n' "$rc" "$FETCHED" )
+check "发布入口目录符号链接竞态注入已触发" "$([ -e "$WORK/race-link.injected" ] && echo injected || echo missed)" injected
 check "链接边界目标变为目录符号链接时返回 2 且 FETCHED=0" "$rc_dirlink" "2:0"
 check "链接边界目录符号链接目标未被链入 .part" "$(find "$WORK/ext-linkdir" -mindepth 1 | wc -l | tr -d ' ')" 0
 check "无 .part 残留"         "$(find "$WORK/run" "$WORK/ext-parent-dir" -name '*.part.*' | wc -l | tr -d ' ')" 0

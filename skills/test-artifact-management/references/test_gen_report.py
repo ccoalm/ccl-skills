@@ -362,6 +362,30 @@ def test_collect_results_corrupt_junit_xml_records_infra_missing_and_preserves_b
     assert "🚨 基础设施失败" in proc_ns.stdout
     assert lr_path.read_bytes() == baseline_bytes
 
+    corrupt.write_text('<?xml version="1.0"?><testsuite name="nightly"><testcase')
+    excluded_suites = [
+        {"name": "unit", "layer": "unit", "results_file": str(valid)},
+        {"name": "nightly", "layer": "e2e", "matrix_gate": False, "results_file": str(corrupt)},
+    ]
+    capsys.readouterr()
+    r_excl = g.collect_results(excluded_suites)
+    assert r_excl["parsed_suites"] == 1
+    assert r_excl["missing_files"] == []
+    assert r_excl["excluded_missing_files"] == [str(corrupt)]
+    assert "outside matrix gate" in capsys.readouterr().err
+    excl_cfg = tmp_path / "excl-config.json"
+    excl_cfg.write_text(json.dumps({
+        "base_token": "", "table_id": "", "report_doc_url": "",
+        "test_suites": excluded_suites,
+    }))
+    proc_excl = g.subprocess.run(
+        [sys.executable, str(Path(g.__file__).resolve()), "--config", str(excl_cfg)],
+        capture_output=True, text=True, env=env,
+    )
+    assert proc_excl.returncode == 0
+    assert "outside matrix gate" in proc_excl.stderr
+    assert json.loads(lr_path.read_text(encoding="utf-8"))["linked"] == {"tc::TC-UNIT-001": "通过"}
+
 
 def test_full_bitable_mode_mixed_corrupt_xml_default_fail_on_preserves_baseline(tmp_path):
     bin_dir = tmp_path / "bin"

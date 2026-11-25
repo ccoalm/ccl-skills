@@ -694,19 +694,33 @@ EOF
   chmod +x "$WORK/spy-upload-pack.sh"
   cp -R "$WORK/partial-repo" "$WORK/partial-positive"
   git -C "$WORK/partial-positive" config remote.origin.uploadpack "$WORK/spy-upload-pack.sh"
-  pos_rc=0
-  GIT_NO_LAZY_FETCH=0 git -C "$WORK/partial-positive" cat-file -e HEAD~1:doc.md >/dev/null 2>&1 || pos_rc=$?
+  pos_out="$(python3 - "$TOOL" "$WORK/partial-positive" 2>&1 <<'PYEOF'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("gcd", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+sys.modules["gcd"] = mod
+spec.loader.exec_module(mod)
+orig_env = mod._git_clean_env
+def env_without_lazy_guard():
+    env = orig_env()
+    env["GIT_NO_LAZY_FETCH"] = "0"
+    return env
+mod._git_clean_env = env_without_lazy_guard
+raise SystemExit(mod.main(["--repo", sys.argv[2], "--rev", "HEAD~1", "HEAD", "doc.md"]))
+PYEOF
+)"
+  pos_rc=$?
   pos_marker="absent"
   [ -e "$WORK/lazy-fetched.marker" ] && pos_marker="present"
   rm -f "$WORK/lazy-fetched.marker"
   git -C "$WORK/partial-repo" config remote.origin.uploadpack "$WORK/spy-upload-pack.sh"
   partial_out="$(GIT_NO_LAZY_FETCH=0 python3 "$TOOL" --repo "$WORK/partial-repo" --rev HEAD~1 HEAD doc.md 2>&1)"
   partial_rc=$?
-  if [ "$pos_rc" -eq 0 ] && [ "$pos_marker" = "present" ] && [ "$partial_rc" -eq 2 ] && [ ! -e "$WORK/lazy-fetched.marker" ] && grep -q 'cannot read HEAD~1:doc.md' <<<"$partial_out"; then
-    printf 'PASS %s\n' "git: --rev enforces GIT_NO_LAZY_FETCH=1 on promisor missing blobs (positive spy verified on $(git --version))"
+  if [ "$pos_rc" -eq 1 ] && [ "$pos_marker" = "present" ] && grep -q '^derived row set: 1$' <<<"$pos_out" && [ "$partial_rc" -eq 2 ] && [ ! -e "$WORK/lazy-fetched.marker" ] && grep -q 'cannot read HEAD~1:doc.md' <<<"$partial_out"; then
+    printf 'PASS %s\n' "git: --rev enforces GIT_NO_LAZY_FETCH=1 on promisor missing blobs (paired read_rev spy verified on $(git --version))"
     pass=$((pass + 1))
   else
-    printf 'FAIL %-46s pos_rc=%s pos_marker=%s rc=%s marker=%s out=%s\n' "git: --rev enforces GIT_NO_LAZY_FETCH=1 on promisor missing blobs" "$pos_rc" "$pos_marker" "$partial_rc" "$([ -e "$WORK/lazy-fetched.marker" ] && echo present || echo absent)" "$partial_out"
+    printf 'FAIL %-46s pos_rc=%s pos_marker=%s pos_out=%s rc=%s marker=%s out=%s\n' "git: --rev enforces GIT_NO_LAZY_FETCH=1 on promisor missing blobs" "$pos_rc" "$pos_marker" "$pos_out" "$partial_rc" "$([ -e "$WORK/lazy-fetched.marker" ] && echo present || echo absent)" "$partial_out"
     fail=$((fail + 1))
   fi
 else
