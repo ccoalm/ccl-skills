@@ -13,6 +13,14 @@ Read local project guidance before inventing commands:
 
 Prefer a documented wrapper when present. Wrapper scripts often set env files, codegen, service ports, coverage options, timeout behavior, xdist/parallelism, fixture paths, or CI parity checks that raw runners miss.
 
+- Read local guidance first: `AGENTS.md`, `CLAUDE.md`, `README`, `CONTRIBUTING`, local agent skill/instruction directories, `Makefile`, `package.json`, `pyproject.toml`, `go.mod`, `pytest.ini`, `vitest`/`playwright` config, CI jobs, `scripts/run_tests.*`, and `scripts/dev.*`.
+- Identify default fast tests, opt-in integration markers, contract/architecture checks, browser/E2E suites, local container stacks, and release smoke commands.
+- Exclude dependency and generated-test noise from the topology: `node_modules`, virtualenvs, vendored/third-party trees, generated SDK snapshots, build outputs, and archived worktrees unless the task is explicitly about those artifacts.
+- Prefer documented wrappers over raw runners unless the task is to debug the runner itself.
+- If a frontend or app repository has only build/dev/format scripts and no assertion-based UI tests, do not treat that as adequate coverage for interaction changes. Use build/typecheck as a structural gate, then add focused state/API tests or record the missing test layer and require rendered browser/device evidence.
+- If CI mainly builds images or deploys by branch/environment, classify it as release plumbing. It does not prove product behavior unless assertion-based test jobs run and block delivery.
+- When adding a new client platform scaffold, inspect whether the generator added default sample tests. Keep a sample only if it asserts real product behavior; otherwise replace it with the smallest deterministic smoke that would fail if the current shell, navigation, entrypoint, or visible state were missing.
+
 ## Test-environment hermeticity (local ↔ CI parity)
 
 "Works on my machine, fails in CI" (and the reverse) has several causes — OS/runtime/browser versions, filesystem case-sensitivity, CPU/memory, network/service availability, dependency caches — but a very common and cheap-to-eliminate one is the test reading **ambient environment** that differs between the two machines. The default fast test target must be **hermetic** on that axis — its result must not depend on the developer's machine env. Neutralize the recurring local-vs-CI drift axes:

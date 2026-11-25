@@ -1,6 +1,10 @@
 # Design Closed-Contract Oracles
 
-Mechanics for the entry rule's closed-boundary positive-assertion obligation and its oracle-dimension and precision companions in `SKILL.md` (Core Rules). The obligations themselves — assert the boundary positively, report the dimensions an oracle crossed, keep benign near-miss rows — and the canonical dimension list live in the entry; this file owns the failure shapes and per-dimension explanations.
+Mechanics and full rules for the closed-boundary positive-assertion obligation and its oracle-dimension and precision companions referenced from `SKILL.md` (Core Rules).
+
+- Mirror the **documented** contract with an independent oracle; don't snapshot a generated/runtime allowlist (that becomes a change-detector). Negative/adversarial cases stay valid — they prove out-of-contract input is rejected. Acting signal: when an adversarial reviewer keeps surfacing a *new instance of the same bypass class* across rounds, prefer an allowlist/invariant that closes the class over banning one more value, and prove it with a mutation where feasible (a boundary-violating change must make the test fail).
+- **A clean oracle is clean only over the DIMENSIONS it crossed, not the cases it ran.** A clean run must be reported with the dimensions it covers, and before trusting it you must enumerate the dimensions themselves and mark each crossed or not: the **shape** of a value; its **provenance**; **cardinality**; **semantics**; and **ordering** where the consumer is order-sensitive.
+- **A guard's cases must pin PRECISION as well as recall — the false-positive direction is where hardening turns into an outage.** Keep benign near-miss cases — inputs that share a prefix, substring, or shape with the violating class and must pass — as permanent rows next to the violating ones, so a later tightening that over-fires turns a row RED instead of shipping.
 
 What makes the oracle's own two companions worth a rule rather than a habit: both the uncrossed-dimension gap and the unpinned-precision gap fail silently in the clean direction — the oracle reports green either way, so nothing in the run itself tells you the gap is there.
 

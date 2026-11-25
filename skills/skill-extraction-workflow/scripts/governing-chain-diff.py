@@ -28,6 +28,7 @@ Exit status:
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -35,12 +36,57 @@ from dataclasses import dataclass
 
 # A heading line: capture level and text.
 _HEADING = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
-# A list item: capture indent width, and the text after the bullet/number marker.
+# A list item: capture leading indent and body text.
 _LIST_ITEM = re.compile(r"^(\s*)(?:[-*+]|\d+[.)])\s+(.*\S)\s*$")
 # A markdown table row (leading pipe); these are data rows, not prose obligations.
 _TABLE_ROW = re.compile(r"^\s*\|")
-# A fenced code block delimiter.
-_FENCE = re.compile(r"^\s*(?:```|~~~)")
+# CommonMark §4.5 fenced code block opener (0..3 cols relative to container; 3+ ` or ~).
+_FENCE_OPEN = re.compile(r"^([ \t]*)(`{3,}|~{3,})([^\r\n]*)$")
+
+_SCRUB_GIT_ENV_EXACT = frozenset({
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_CONFIG",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_NOSYSTEM",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_SYSTEM",
+    "GIT_DIFF_OPTS",
+    "GIT_DIR",
+    "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+    "GIT_EXEC_PATH",
+    "GIT_EXTERNAL_DIFF",
+    "GIT_GLOB_PATHSPECS",
+    "GIT_GRAFT_FILE",
+    "GIT_ICASE_PATHSPECS",
+    "GIT_IMPLICIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_INTERNAL_SUPER_PREFIX",
+    "GIT_LITERAL_PATHSPECS",
+    "GIT_NAMESPACE",
+    "GIT_NOGLOB_PATHSPECS",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_PAGER",
+    "GIT_PREFIX",
+    "GIT_QUARANTINE_PATH",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_SHALLOW_FILE",
+    "GIT_SUPER_PREFIX",
+    "GIT_TEMPLATE_DIR",
+    "GIT_WORK_TREE",
+})
+
+
+def _git_clean_env() -> dict[str, str]:
+    return {
+        k: v
+        for k, v in os.environ.items()
+        if k not in _SCRUB_GIT_ENV_EXACT
+        and not k.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))
+    }
 
 
 def normalize(text: str) -> str:
@@ -139,17 +185,19 @@ def parse(source: str, *, min_chars: int = 25) -> list[Obligation]:
     """
     obligations: list[Obligation] = []
     headings: list[tuple[int, str]] = []  # (level, content_key)
-    list_stack: list[tuple[int, str]] = []  # (indent, content_key)
+    list_stack: list[tuple[int, int, str]] = []  # (marker_indent, content_indent, content_key)
     paragraph: list[str] = []
-    in_fence = False
+    fence_closer: re.Pattern[str] | None = None
+    fence_max_indent = 3
     # A list item may wrap across several lines. Its continuation lines belong to
     # the item, not to a following paragraph — folding them in is what makes a
     # cosmetic rewrap compare equal instead of reading as a rewritten line.
     pending_item: list[str] | None = None
     pending_indent = 0
+    pending_content_indent = 0
 
     def chain_now() -> tuple[str, ...]:
-        return tuple([key for _, key in headings] + [key for _, key in list_stack])
+        return tuple([key for _, key in headings] + [key for _, _, key in list_stack])
 
     def flush_item() -> None:
         nonlocal pending_item
@@ -157,7 +205,7 @@ def parse(source: str, *, min_chars: int = 25) -> list[Obligation]:
             return
         text = " ".join(pending_item)
         obligations.extend(split_obligations(text, chain_now(), min_chars))
-        list_stack.append((pending_indent, content_key(text)))
+        list_stack.append((pending_indent, pending_content_indent, content_key(text)))
         pending_item = None
 
     def flush_paragraph() -> None:
@@ -168,13 +216,32 @@ def parse(source: str, *, min_chars: int = 25) -> list[Obligation]:
         paragraph.clear()
 
     for raw in source.split("\n"):
-        if _FENCE.match(raw):
-            flush_item()
-            flush_paragraph()
-            in_fence = not in_fence
+        if fence_closer is not None:
+            m_close = fence_closer.match(raw)
+            if m_close and len(m_close.group(1).expandtabs(4)) <= fence_max_indent:
+                fence_closer = None
             continue
-        if in_fence:
-            continue
+        fence_open = _FENCE_OPEN.match(raw)
+        if fence_open and not (fence_open.group(2)[0] == "`" and "`" in fence_open.group(3)):
+            lead_cols = len(fence_open.group(1).expandtabs(4))
+            container_indent = 0
+            if pending_item is not None and lead_cols >= pending_content_indent:
+                container_indent = pending_content_indent
+            else:
+                for _m_ind, c_ind, _key in reversed(list_stack):
+                    if lead_cols >= c_ind:
+                        container_indent = c_ind
+                        break
+            if lead_cols <= container_indent + 3:
+                flush_item()
+                flush_paragraph()
+                while list_stack and lead_cols < list_stack[-1][1]:
+                    list_stack.pop()
+                ch = fence_open.group(2)[0]
+                min_len = len(fence_open.group(2))
+                fence_max_indent = container_indent + 3
+                fence_closer = re.compile(rf"^([ \t]*){re.escape(ch)}{{{min_len},}}[ \t]*\r?$")
+                continue
 
         if not raw.strip():
             flush_item()
@@ -204,10 +271,12 @@ def parse(source: str, *, min_chars: int = 25) -> list[Obligation]:
             flush_item()
             flush_paragraph()
             indent = len(item.group(1).expandtabs(4))
+            content_indent = len(raw[: item.start(2)].expandtabs(4))
             while list_stack and list_stack[-1][0] >= indent:
                 list_stack.pop()
             pending_item = [item.group(2)]
             pending_indent = indent
+            pending_content_indent = content_indent
             continue
 
         # An indented non-item line directly under an open item continues it.
@@ -272,9 +341,23 @@ def derive_row_set(before: str, after: str) -> list[Row]:
 
 def read_rev(repo: str, rev: str, path: str) -> str:
     result = subprocess.run(
-        ["git", "-C", repo, "show", f"{rev}:{path}"],
+        [
+            "git",
+            "--no-pager",
+            "--no-replace-objects",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-C",
+            repo,
+            "show",
+            f"{rev}:{path}",
+        ],
         capture_output=True,
         text=True,
+        env=_git_clean_env(),
+        stdin=subprocess.DEVNULL,
     )
     if result.returncode != 0:
         print(f"error: cannot read {rev}:{path}", file=sys.stderr)

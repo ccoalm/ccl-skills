@@ -71,11 +71,70 @@ cat > "$tmp/src/surrender.ts" <<'EOF'
 const c = "\x1b[31m"
 EOF
 assert_hit  "--allow=render does NOT exempt surrender.ts" "hardcoded ANSI/OSC escape literal" "$tmp/src/surrender.ts" --allow=render
+# lexical segment normalization: .. traversal must NOT inherit parent segment exemption,
+# --allow=.. / --allow=. must NOT wildcard relative paths, and --allow=./render must exempt render/ansi.go.
+assert_hit  "--allow=render does NOT exempt render/../src/colors.go traversal" "hardcoded ANSI/OSC escape literal" "$tmp/render/../src/colors.go" --allow=render
+if (cd "$tmp/render" && python3 -W error "$script" "../src/colors.go" --allow=.. >/dev/null 2>&1); then
+  fail=$((fail+1)); echo "FAIL - --allow=.. exempted ../src/colors.go"
+else
+  rc=$?
+  if [ "$rc" = 1 ]; then pass=$((pass+1)); echo "ok   - --allow=.. does NOT exempt ../src/colors.go"
+  else fail=$((fail+1)); echo "FAIL - --allow=.. expected exit 1, got $rc"; fi
+fi
+if (cd "$tmp" && python3 -W error "$script" "render/ansi.go" --allow=./render >/dev/null 2>&1); then
+  pass=$((pass+1)); echo "ok   - --allow=./render exempts render/ansi.go (0)"
+else
+  fail=$((fail+1)); echo "FAIL - --allow=./render rejected render/ansi.go"
+fi
+assert_hit  "--allow=. does NOT wildcard src/colors.go" "hardcoded ANSI/OSC escape literal" "$tmp/src/colors.go" --allow=.
+assert_hit  "--allow=render/../src does NOT collapse to exempt src/" "hardcoded ANSI/OSC escape literal" "$tmp/src/colors.go" "--allow=render/../src"
+mkdir -p "$tmp/other/nested" "$tmp/other/render"
+cp "$tmp/src/colors.go" "$tmp/other/render/colors.go"
+ln -s "$tmp/other/nested" "$tmp/src/link"
+assert_hit  "symlink-parent src/link/../render/colors.go NOT exempted by --allow=src/render" "hardcoded ANSI/OSC escape literal" "$tmp/src/link/../render/colors.go" "--allow=src/render"
+rm -f "$tmp/src/link"
 # regression (challenge R2): .mts scanned + padded-zero \u{001b} caught (printf %s keeps literal text)
 printf '%s\n' 'const a = "\u{001b}[31m"' > "$tmp/mod.mts"
 assert_hit  ".mts + padded \\u{001b} caught" "hardcoded ANSI/OSC escape literal" "$tmp/mod.mts"
 assert_exit "missing path -> inconclusive (2)"      2 "$tmp/src/nope.go"
 assert_exit "unsupported file -> inconclusive (2)"  2 "$tmp/empty/readme.md"
 assert_exit "dir without source -> inconclusive (2)" 2 "$tmp/empty"
+walk_probe="$(python3 -W error - "$script" "$tmp/empty" <<'PY'
+import contextlib, io, importlib.util, os, sys
+spec = importlib.util.spec_from_file_location("cbansi", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+orig_walk = os.walk
+def fake_walk(top, onerror=None, **kw):
+    if onerror is not None:
+        onerror(PermissionError(13, "Permission denied", top))
+    return iter(())
+os.walk = fake_walk
+err = io.StringIO()
+try:
+    with contextlib.redirect_stderr(err):
+        rc = mod.main([sys.argv[2]])
+finally:
+    os.walk = orig_walk
+print(f"rc={rc} err={err.getvalue().strip()}")
+PY
+)"
+if grep -q '^rc=2 ' <<<"$walk_probe" && grep -qF "cannot read part of scope" <<<"$walk_probe"; then
+  pass=$((pass+1)); echo "ok   - deterministic walk_errs probe reports cannot read part of scope (2)"
+else
+  fail=$((fail+1)); echo "FAIL - deterministic walk_errs probe ($walk_probe)"
+fi
+if [ "$(id -u)" -ne 0 ]; then
+  mkdir -p "$tmp/locked_parent/sub"
+  cp "$tmp/src/colors.go" "$tmp/locked_parent/sub/colors.go"
+  chmod 000 "$tmp/locked_parent/sub"
+  set +e; lock_err="$(python3 -W error "$script" "$tmp/locked_parent" 2>&1 >/dev/null)"; lock_rc=$?; set -e
+  chmod 700 "$tmp/locked_parent/sub"
+  if [ "$lock_rc" = 2 ] && grep -qF "cannot read part of scope" <<<"$lock_err"; then
+    pass=$((pass+1)); echo "ok   - unreadable subdir reports cannot read part of scope (2)"
+  else
+    fail=$((fail+1)); echo "FAIL - unreadable subdir diagnostic (rc=$lock_rc, err='$lock_err')"
+  fi
+fi
 
 echo "----"; echo "passed=$pass failed=$fail"; [ "$fail" -eq 0 ]

@@ -1,6 +1,8 @@
 # Verify Enforcement Mechanisms
 
-Mechanics for the entry rule's enforcement-mechanism verification obligation in `SKILL.md` (Core Rules): the behavioral matrix's cells, the fail-open bypass set, and the port/mirror parity procedure. The obligations themselves — a matrix is required before a completion claim, scratch/synthetic targets only, parity-from-reading is hypothesis-grade — live in the entry; this file owns what goes in the matrix.
+Mechanics and full rules for the enforcement-mechanism verification obligation referenced from `SKILL.md` (Core Rules).
+
+- Require a behavioral matrix before a completion claim — blocked case per deny-condition, allowed/no-collateral cases, the fail-open/swallowed-exception bypass set, and the canonicalization/symlink/worktree edge cases. Run the matrix only against scratch/synthetic targets (a throwaway checkout/worktree, fixture repo, or dry-run mode) — never a live workspace, real user data, or live credentials. Parity claimed from code reading alone is hypothesis-grade, not evidence.
 
 ## Behavioral Matrix Cells
 

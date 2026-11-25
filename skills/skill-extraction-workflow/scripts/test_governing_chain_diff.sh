@@ -388,7 +388,167 @@ run_case "cjk: fullwidth punct does not flip english floor" 0 "" \
 "
 
 # ---------------------------------------------------------------------------
-# 16. Anchor self-check: prove the harness can actually fail. A deliberately
+# 16. CommonMark §4.5 fenced code blocks & GIT_* env isolation:
+#     (a) 4-backtick outer fence containing an inner 3-backtick block must NOT
+#         flip in_fence off inside the outer block (editing illustrative rules
+#         inside the inner block derives 0 rows);
+#     (b) 4-backtick outer fence containing a single 3-backtick line must NOT
+#         leave in_fence out of sync and swallow obligations after the block;
+#     (c) 3-backtick fence containing a ~~~ line must NOT close on ~~~;
+#     (d) a line starting with inline ```code``` (backticks in info string) is
+#         prose, not an unclosed code fence;
+#     (e) --repo / --rev scrubs poisoned ambient GIT_DIR / GIT_WORK_TREE.
+# ---------------------------------------------------------------------------
+run_case "fence: 4-backtick outer ignores inner 3-backtick prose" 0 "" \
+"## Core Rules
+
+\`\`\`\`markdown
+\`\`\`
+- Illustrative obligation inside outer 4-backtick example before edit.
+\`\`\`
+\`\`\`\`
+
+$HOST_A
+" \
+"## Core Rules
+
+\`\`\`\`markdown
+\`\`\`
+- Illustrative obligation inside outer 4-backtick example after edit.
+\`\`\`
+\`\`\`\`
+
+$HOST_A
+"
+
+run_case "fence: 4-backtick outer with odd inner 3-backtick line" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+\`\`\`\`markdown
+\`\`\`
+unclosed example snippet
+\`\`\`\`
+
+$HOST_A
+  - $OBLIGATION
+" \
+"## Core Rules
+
+\`\`\`\`markdown
+\`\`\`
+unclosed example snippet
+\`\`\`\`
+
+$HOST_A
+"
+
+run_case "fence: 3-backtick outer wrapping tilde inner line" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+\`\`\`text
+~~~
+still inside backtick fence
+\`\`\`
+
+$HOST_A
+  - $OBLIGATION
+" \
+"## Core Rules
+
+\`\`\`text
+~~~
+still inside backtick fence
+\`\`\`
+
+$HOST_A
+"
+
+run_case "fence: inline triple-backtick span at line start" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+\`\`\`--force\`\`\` is forbidden on any shared branch without recorded lease proof.
+$HOST_A
+  - $OBLIGATION
+" \
+"## Core Rules
+
+\`\`\`--force\`\`\` is forbidden on any shared branch without recorded lease proof.
+$HOST_A
+"
+
+run_case "fence: 4-space indented delimiter at root is indented code, not fence" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+    \`\`\`
+
+$HOST_A
+  - $OBLIGATION
+" \
+"## Core Rules
+
+    \`\`\`
+
+$HOST_A
+"
+
+run_case "fence: list-nested 5-space fence still shields inner example prose" 0 "" \
+"## Core Rules
+
+  1. Ordered step introducing an indented code example:
+
+     \`\`\`markdown
+     - Illustrative list rule inside valid list-nested fence before edit.
+     \`\`\`
+
+$HOST_A
+" \
+"## Core Rules
+
+  1. Ordered step introducing an indented code example:
+
+     \`\`\`markdown
+     - Illustrative list rule inside valid list-nested fence after edit.
+     \`\`\`
+
+$HOST_A
+"
+
+mkdir -p "$WORK/githome"
+if (
+  while IFS='=' read -r k _; do
+    case "$k" in GIT_*) unset "$k" ;; esac
+  done < <(env)
+  export HOME="$WORK/githome" GIT_CONFIG_NOSYSTEM=1
+  git -c init.defaultBranch=main -C "$WORK" init -q gitrepo &&
+  git -C "$WORK/gitrepo" config user.email "test@example.invalid" &&
+  git -C "$WORK/gitrepo" config user.name "Test" &&
+  git -C "$WORK/gitrepo" config commit.gpgsign false &&
+  printf '## Core Rules\n\n%s\n  - %s\n' "$HOST_A" "$OBLIGATION" >"$WORK/gitrepo/doc.md" &&
+  git -C "$WORK/gitrepo" add doc.md &&
+  git -C "$WORK/gitrepo" -c core.hooksPath=/dev/null commit -q -m "base" &&
+  printf '## Core Rules\n\n%s\n' "$HOST_A" >"$WORK/gitrepo/doc.md" &&
+  git -C "$WORK/gitrepo" add doc.md &&
+  git -C "$WORK/gitrepo" -c core.hooksPath=/dev/null commit -q -m "drop" &&
+  git -C "$WORK/gitrepo" replace -f HEAD HEAD~1
+); then
+  rev_out="$(GIT_DIR="$WORK/poison-git-dir" GIT_WORK_TREE="$WORK/poison-wt" \
+    GIT_INDEX_FILE="$WORK/poison.idx" GIT_CONFIG_PARAMETERS="'core.worktree=/nonexistent'" \
+    python3 "$TOOL" --repo "$WORK/gitrepo" --rev HEAD~1 HEAD doc.md 2>&1)"
+  rev_rc=$?
+  if [ "$rev_rc" -eq 1 ] && grep -q '^derived row set: 1$' <<<"$rev_out"; then
+    printf 'PASS %s\n' "git: --rev scrubs GIT_DIR/GIT_CONFIG_PARAMETERS & ignores replace refs"
+    pass=$((pass + 1))
+  else
+    printf 'FAIL %-46s rc=%s out=%s\n' "git: --rev scrubs GIT_DIR/GIT_CONFIG_PARAMETERS & ignores replace refs" "$rev_rc" "$rev_out"
+    fail=$((fail + 1))
+  fi
+else
+  printf 'FAIL %s\n' "git fixture setup failed"
+  fail=$((fail + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# 17. Anchor self-check: prove the harness can actually fail. A deliberately
 #     wrong expectation must be reported as FAIL, otherwise every PASS above is
 #     evidence of nothing. Run in a subshell so the real counters stay clean.
 # ---------------------------------------------------------------------------

@@ -49,6 +49,7 @@ python test/scripts/gen_report.py \
 - md 同步匹配必须以 用例ID 为唯一键；模块名或功能点相同不代表是同一条记录
 - 若 md 先于 Bitable 被修改（如直接编辑文件），需将 md 变更反向同步到 Bitable，再按 update 工作流补信息流转
 - **漂移检查**：定期运行 `python gen_report.py --config test/.report-config.json --diff-md test/cases/all.md` 显示 md 与 Bitable 的 added/removed/changed；废弃记录自动排除（不在 md 里属正常）；多人编辑后必跑一次再 commit
+- **JUnit XML 损坏防覆盖**：`gen_report.py` 解析套件结果遇到截断、非法编码或非 `testsuite`/`testsuites` 根节点 XML 时，必须按基础设施失败记录缺失套件并保留既有 `last-run.json` 基线，不得覆盖完整快照
 - **版本钉扎**：当仓内测试代码/脚本按某条 TC 实现时，在实现侧记录该 TC 的修订标识——用**定义字段的规范化快照哈希**（或 Bitable 的不可变 record 修订号，若可得）；`[姓名 日期]` 不够（同人同日二次修订会撞标识，钉住旧版仍比对相等）。实现前先比对，**回写/提测前再验一次，且回写本身走与认领相同的修订条件更新**（先验后写仍是两步——验证通过与写入之间的并发修改只有条件写能挡）——哈希只有相等性判断：**任何一次不一致都视为分歧，停下、先做源对账**（更新钉扎侧并使差异可评审后再继续）；「更新/更旧」的说法仅当平台提供不可变单调修订号时才可用；发现源记录 stale/自相矛盾时**停下先修源记录**，不得按旧版实现后事后补
 - **认领防冲突**：多人/多 agent 并发按 TC 实现时，认领必须是**原子的修订条件更新**（仅当记录修订仍等于读取时的修订才写入——平台支持的 CAS/乐观锁语义）或走**串行化认领协调者**（单写入口）。「读空→写」是 TOCTOU；「写后回读」也不等价——A 回读成功后仍可被 B 顶掉、双方各自都验证通过。两种安全机制都不可得时，**并发认领在该表上不受支持：停下改走人工/单线分配，不得按回读结果继续**。字段已有他人活跃认领时不得覆盖，改为联系认领人或换条目
 - `+record-upsert --record-id` 中的 record_id 是 Bitable 内部 ID，必须先用 `get_record_index()` 从 用例ID 查出，不能直接用 用例ID 代替
@@ -56,9 +57,187 @@ python test/scripts/gen_report.py \
 ## update 工作流
 
 1. **明确变更范围** — 哪些功能点变了？哪些用例受影响？列出 用例ID 清单
-2. **拉取现有记录** — `lark-cli base +record-list` 查当前状态，见 `references/bitable-setup.md`
+2. **拉取现有记录** — `lark-cli base +record-list` 查当前状态，见下方「Step 8: List and Search Existing Records」
 3. **分类变更** — 对照变更分类表分类每条记录的操作
 4. **执行更新** — 单条用 `+record-upsert --record-id`，批量用 Python 脚本，信息流转 rolling-append（默认保留最近 100 条）
 5. **新增记录** — 新功能点调用 `+record-upsert`（无 --record-id），ID 从现有最大序号续编
 6. **同步本地 md** — 对照变更分类表，在本地 md 对应模块中同步增/改/标废弃
 7. **验收** — 检查受影响记录的状态和信息流转是否正确；确认本地 md 与 Bitable 一致
+
+## Step 8: List and Search Existing Records
+
+需要 scope: `base:record:read`
+
+```bash
+lark-cli auth login --domain base --scope "base:record:read base:record:update"
+```
+
+### List all records (paginated)
+
+```bash
+lark-cli base +record-list --base-token "<base_token>" --table-id "<table_id>" \
+  --limit 200 --format json
+```
+
+`+record-list` uses `--limit` (max 200) and `--offset` for pagination. Default output is markdown; pass `--format json` for machine-readable output.
+
+### Python: 按 用例ID 建查找索引
+
+```python
+import os, subprocess, json
+
+def _extract_page_items(stdout_text):
+    data = json.loads(stdout_text)
+    if not isinstance(data, dict) or not isinstance(data.get("data"), dict) or not isinstance(data["data"].get("items"), list):
+        raise RuntimeError(f"Unexpected +record-list payload shape (missing data.items list): {stdout_text[:200]}")
+    return data["data"]["items"]
+
+def get_record_index(base_token, table_id):
+    """Returns dict: {用例ID → record_id}. Raises on CLI/schema failure or duplicate 用例ID."""
+    index = {}
+    offset = 0
+    limit = 200
+    while True:
+        result = subprocess.run(
+            ["lark-cli", "base", "+record-list",
+             "--base-token", base_token,
+             "--table-id", table_id,
+             "--limit", str(limit),
+             "--offset", str(offset),
+             "--format", "json"],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"+record-list failed: {result.stderr}")
+        items = _extract_page_items(result.stdout)
+        for record in items:
+            case_id = record["fields"].get("用例ID", "")
+            if case_id:
+                if case_id in index:
+                    raise ValueError(f"Duplicate 用例ID '{case_id}' found; fix Bitable before updating")
+                index[case_id] = record["record_id"]
+        if len(items) < limit:
+            break
+        offset += limit
+    return index
+```
+
+## Step 9: Update Records
+
+### Update a single record
+
+```bash
+lark-cli base +record-upsert --base-token "<base_token>" --table-id "<table_id>" \
+  --record-id "<record_id>" \
+  --json '{"状态": "通过"}'
+```
+
+`--json` payload is the fields dict directly (not wrapped in `{"fields": ...}`).
+`record_id` is the internal ID from `+record-list`; never use 用例ID directly as record_id.
+
+### Append to 信息流转 (read-then-write, single-writer precondition, rolling retention)
+
+- **Single-writer precondition**: `+record-upsert` performs an unconditional field PUT with no conditional-revision/ETag flag, so single-writer / serialized execution per table or record is a required precondition; do not run concurrent uncoordinated RMW updaters against the same record (route multi-editor updates through one serialized runner).
+- **Paginated named-field read & rolling retention**: `+record-get` returns fields as a positional array, not by name — use `+record-list` with full pagination to read a known record's named fields and apply `TC_INFO_KEEP` rolling retention (`100` by default; `0` = unlimited):
+
+```python
+def get_record_fields(base_token, table_id, record_id):
+    """Read fields of a specific record by record_id (paginates fully). Raises if not found or CLI/schema fails."""
+    offset = 0
+    limit = 200
+    while True:
+        result = subprocess.run(
+            ["lark-cli", "base", "+record-list",
+             "--base-token", base_token,
+             "--table-id", table_id,
+             "--limit", str(limit),
+             "--offset", str(offset),
+             "--format", "json"],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"+record-list failed: {result.stderr}")
+        items = _extract_page_items(result.stdout)
+        for rec in items:
+            if rec["record_id"] == record_id:
+                return rec["fields"]
+        if len(items) < limit:
+            break
+        offset += limit
+    raise LookupError(f"record_id '{record_id}' not found in table")
+
+def format_rolling_info_log(current, entry):
+    """Append entry to rolling 信息流转 log (retains last TC_INFO_KEEP entries, default 100; 0 = unlimited)."""
+    keep = int(os.environ.get("TC_INFO_KEEP", "100"))
+    lines = [ln for ln in (current or "").splitlines() if ln.strip()]
+    lines.append(entry.strip())
+    if keep > 0:
+        lines = lines[-keep:]
+    return "\n".join(lines)
+
+def append_info_log(base_token, table_id, record_id, entry):
+    """entry: '[姓名 2026-05-25] 内容'. Precondition: single serialized writer for record_id."""
+    fields = get_record_fields(base_token, table_id, record_id)
+    new_value = format_rolling_info_log(fields.get("信息流转", ""), entry)
+    result = subprocess.run(
+        ["lark-cli", "base", "+record-upsert",
+         "--base-token", base_token,
+         "--table-id", table_id,
+         "--record-id", record_id,
+         "--json", json.dumps({"信息流转": new_value})],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"信息流转 write failed for {record_id}: {result.stderr}")
+```
+
+### Python: batch update records by 用例ID
+
+```python
+updates = [
+    {"用例ID": "TC-SY-001", "状态": "通过",  "信息流转追加": "[张三 2026-05-28] 测试通过"},
+    {"用例ID": "TC-SY-003", "状态": "失败",  "信息流转追加": "[张三 2026-05-28] 步骤2预期结果不符"},
+    {"用例ID": "TC-SY-007", "状态": "跳过",  "信息流转追加": "[李四 2026-05-28] 功能已废弃"},
+]
+
+# Precondition: single serialized writer for TABLE_ID. Validate all target IDs up front,
+# read/merge 信息流转 before writing, and send one atomic +record-upsert per record.
+index = get_record_index(BASE_TOKEN, TABLE_ID)
+missing_ids = [u["用例ID"] for u in updates if u["用例ID"] not in index]
+if missing_ids:
+    raise LookupError(f"Target 用例ID not found in Bitable: {missing_ids}")
+
+for u in updates:
+    case_id = u["用例ID"]
+    record_id = index[case_id]
+    payload = {k: v for k, v in u.items() if k not in ("用例ID", "信息流转追加")}
+    if "信息流转追加" in u:
+        existing = get_record_fields(BASE_TOKEN, TABLE_ID, record_id)
+        payload["信息流转"] = format_rolling_info_log(existing.get("信息流转", ""), u["信息流转追加"])
+    if not payload:
+        continue
+    result = subprocess.run(
+        ["lark-cli", "base", "+record-upsert",
+         "--base-token", BASE_TOKEN,
+         "--table-id", TABLE_ID,
+         "--record-id", record_id,
+         "--json", json.dumps(payload)],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"+record-upsert failed for {case_id} ({record_id}): {result.stderr}")
+```
+
+### Python: update test case content (requirement changed)
+
+```python
+content_updates = [
+    {
+        "用例ID": "TC-SY-002",
+        "操作步骤": "1. 新步骤一\n2. 新步骤二",
+        "预期结果": "新预期结果",
+        "信息流转追加": "[产品 2026-05-28] 需求变更：步骤和预期结果已更新"
+    },
+]
+# same loop as batch update above
+```

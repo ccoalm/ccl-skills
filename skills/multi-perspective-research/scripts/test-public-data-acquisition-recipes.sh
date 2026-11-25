@@ -55,12 +55,12 @@ if unmatched:
     print("未登记的可运行块（要么覆盖它，要么在 MANIFEST 里写明豁免理由）：")
     for lang,head in unmatched: print(f"   [{lang}] {head}")
     sys.exit(1)
-# 抽出要执行的块
+# 核验全部已登记块（含 exempt 块，防止静默删改或重复匹配）并抽出要执行的块
 for name,pred,how in MANIFEST:
-    if how!="exec": continue
     hit=[b for l,b in blocks if pred(l,b)]
     if len(hit)!=1:
         print(f"块 {name} 命中 {len(hit)} 个，判据需更新"); sys.exit(1)
+    if how!="exec": continue
     ext="py" if name=="alias-parse" else "sh"
     open(f"{work}/{name.replace('/','_')}.{ext}","w").write(hit[0])
 print(f"块清单：共 {len(blocks)} 个，执行 {sum(1 for _,_,h in MANIFEST if h=='exec')} 类，其余已登记豁免")
@@ -87,6 +87,27 @@ if python3 "$WORK/check-block-manifest.py" "$WORK/unknown-fence.md" "$WORK/negat
   bad "块清单能报未知 fence 标签" "未知标签被忽略"
 else
   ok "块清单能报未知 fence 标签"
+fi
+python3 - "$DOC" "$WORK/missing-exempt.md" <<'PY'
+import re, sys
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src, encoding="utf-8").read()
+stripped, n = re.subn(r'^```python\n[^\n]*totA.*?^```[ \t]*\n', '', text, count=1, flags=re.S | re.M)
+assert n == 1, f"expected 1 totA block, got {n}"
+open(dst, "w", encoding="utf-8").write(stripped)
+PY
+mkdir -p "$WORK/positive-extract"
+if python3 "$WORK/check-block-manifest.py" "$DOC" "$WORK/positive-extract" >/dev/null 2>&1; then
+  ok "块清单正例抽取目录对照通过"
+else
+  bad "块清单正例抽取目录对照通过" "正例失败"
+fi
+miss_out=$(python3 "$WORK/check-block-manifest.py" "$WORK/missing-exempt.md" "$WORK/negative-extract" 2>&1)
+miss_rc=$?
+if [ "$miss_rc" -eq 1 ] && grep -qF "块 col-attrib 命中 0 个" <<<"$miss_out"; then
+  ok "块清单能报缺失的已登记豁免块"
+else
+  bad "块清单能报缺失的已登记豁免块" "rc=$miss_rc out=$miss_out"
 fi
 cp "$WORK/fetch_accept.sh" "$WORK/fetch.sh" 2>/dev/null || { echo "抽取 fetch 块失败" >&2; exit 1; }
 cp "$WORK/alias-parse.py" "$WORK/parse.py" 2>/dev/null || { echo "抽取 ALIAS 块失败" >&2; exit 1; }
@@ -202,6 +223,13 @@ check "空响应原因匹配"        "$(grep -Fq '空响应' "$WORK/empty.log" &
 mkdir -p "$WORK/run/adir" && : > "$WORK/run/adir/keep"
 check "目标是目录返回 2"      "$(run_fetch "$WORK/run/adir" 'https://x/data')"       2
 check "目录内容未被动"        "$([ -e "$WORK/run/adir/keep" ] && echo kept || echo GONE)" kept
+printf '{"external":true}' > "$WORK/ext-target.json"
+ln -s "$WORK/ext-target.json" "$WORK/run/live-link.json"
+check "目标是有效符号链接返回 2" "$(FETCH_LOG="$WORK/live-link.log" run_fetch "$WORK/run/live-link.json" 'https://x/data')" 2
+check "有效符号链接目标未被动" "$(cat "$WORK/ext-target.json")" '{"external":true}'
+ln -s "$WORK/no-such-target.json" "$WORK/run/dangling-link.json"
+check "目标是悬空符号链接返回 2" "$(FETCH_LOG="$WORK/dangling-link.log" run_fetch "$WORK/run/dangling-link.json" 'https://x/data')" 2
+check "悬空符号链接未创建目标" "$([ -e "$WORK/no-such-target.json" ] && echo created || echo absent)" absent
 check "无 .part 残留"         "$(find "$WORK/run" -name '*.part.*' | wc -l | tr -d ' ')" 0
 
 run_fetch_smallcap() {  # 把 MAX_BYTES 压到很小，用来触发体积上限分支
@@ -277,6 +305,7 @@ echo "== 分页循环：解析失败必须非零终止，不得空转（评审 P
 # 只跑 sh[0] 会漏掉这一块——分页块里 N=$(...) 失败时 OFF 不前进，会反复读同一页。
 cat > "$WORK/pagerun.sh" <<'SH'
 set -euo pipefail
+export PATH="$WORKDIR/bin:$PATH"
 UA="t t@example.invalid"; OUT=$PWD; export UA OUT
 DOMAIN=example.invalid; ID=ds; PAGE=2
 # shellcheck disable=SC1090

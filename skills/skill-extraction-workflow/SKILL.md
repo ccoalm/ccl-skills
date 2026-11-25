@@ -9,16 +9,14 @@ Turn observed experience into reusable skills without business-specific details.
 
 ## Start here (30 秒定位)
 
-下面的 Core Rules 很长——不用全读。按这个顺序走:
-
-1. **跑流程**:`references/extraction-quickstart.md` 是一页式执行流(charter → source register → 分批 → 每批 draft / sibling-map / sanitize / dual-track / commit → closeout)。任何新提炼先读它。
+1. **跑流程**:`references/extraction-quickstart.md`（charter → source register → 分批 → draft / sibling-map / sanitize / dual-track / commit → closeout）。任何新提炼先读它。
 2. **三道必读闸**(任何 shared-skill 改动都过):
    - R0 泄漏审计零命中 → `references/r0-leakage-audit.md`
    - dual-track 评审 = 独立 review + 对抗 challenge → `references/dual-track-review-gate.md`
    - 生命周期/provenance 隔离(WIP 进 per-host scratch,shared 树只放 label 化规则)→ `references/extraction-lifecycle-handoff.md`
-3. **长尾方法**(按场景触发,完整清单见底部 `## Reference Loading`):UI/UX 判断提炼、incident 复盘、两源(design+code)、parallel-stack、归因核验、example-domain 预选 等。
+3. **长尾方法**:按场景查底部 `## Reference Loading`。
 
-下面 `## Core Rules` 是按主题分组的**红线/不变式定义**;`## Extraction Workflow` 是 Step 0–6 的**有序执行流程**。两者**各持一面、互相指引、不深抄对方**:某步骤引用拥有该闸的 Core Rule、只写顺序 + 步骤特有的执行细节,不复述该规则的原则;某 Core Rule 不内嵌步骤的模板/清单,只给红线 + 指针。**同一 facet 同时写进两边 = drift 缺陷**(改一处忘另一处即矛盾);冲突时以 `## Core Rules` 的定义为准,新增时向它收敛。向 canonical 面收敛时若需改写/删除既有规则文本,按 `references/rule-consolidation.md` 的零损失义务表治理。
+`## Core Rules` 持有红线/不变式定义,`## Extraction Workflow` 持有 Step 0–6 有序流程;两者互相指引、不重复抄写,**同一 facet 双写即 drift 缺陷**(冲突以 `## Core Rules` 为准,改写/删除既有规则按 `references/rule-consolidation.md` 零损失义务表治理)。
 
 ## Core Rules
 
@@ -301,7 +299,7 @@ Turn observed experience into reusable skills without business-specific details.
 ## Reference Loading
 
 - R0, provenance, and attribution: `references/r0-leakage-audit.md` (required for R0 on new labels/examples or maintainer enforcement), `references/example-domain-preselect.md` (required for ≥2 new examples or multi-line/code-fence examples), `references/attribution-verification.md` (required for origin/chronology/standard/version/authority/lineage claims, incl. headers, see-also lists, block quotes), `references/extraction-lifecycle-handoff.md` (required for provenance archives, batch closeout, dirty-register cleanup, or plugin-source discovery).
-- Extraction planning and coverage: `references/source-to-skill-extraction.md`, `references/source-register.md` (required before editing target skills or claiming full/complete coverage), `references/coverage-exhaustion-traps.md` (before exhausted/complete/no-gap/fully-extracted claims), `references/evidence-card-template.md` (L0/L1 evidence record), `references/review-feedback-mining.md` (source = human review feedback on merged changes: author filter, diff-fact adoption, idempotent classification, operator decides).
+- Extraction planning and coverage: `references/source-to-skill-extraction.md`, `references/backend-data-and-redis-extraction.md` (DB/DAL and Redis extraction methods), `references/design-and-ledger-extraction.md` (coverage/ledger/judgment-delta matrices and Figma reading), `references/source-register.md` (required before editing target skills or claiming full/complete coverage), `references/coverage-exhaustion-traps.md` (before exhausted/complete/no-gap/fully-extracted claims), `references/evidence-card-template.md` (L0/L1 evidence record), `references/review-feedback-mining.md` (source = human review feedback on merged changes: author filter, diff-fact adoption, idempotent classification, operator decides).
 - UI/UX and multi-skill routing: `references/uiux-judgment-extraction.md`, `references/uiux-routing-map.md`, `references/firing-point-placement.md`, `references/skill-listing-budget.md`, `references/online-skill-review.md`, `references/harness-patterns-and-eval.md`.
 - Validation and authoring gates: `references/validation-and-landing.md`, `references/description-authoring.md` (required before routing/workflow/cross-cutting `description` rewrites), `references/rule-consolidation.md` (required before rewriting/retiring/consolidating rules or drafting behavior-shaping rules; its form-by-failure table owns the form), `references/l0-l1-l2-routing.md` (required for `discard`/`route`/L0–L2 or gate-strength decisions), `references/review-rubric.md` (dual-track support; does not replace `references/dual-track-review-gate.md`), `references/dual-track-debug-prompts.md` (wrapper-debug CLI diagnostics only; never substitutes for `scripts/extraction_review_gate.sh`), `references/external-practice-controls.md` (public-evidence trust boundaries: research, leaf delegation, behavioral evidence).
 - Retrospective/correction support: `references/resume-paused-delivery.md` (premature-stop resume requires affirmative continuation), `references/correction-routing-map.md` (required when a correction names tests, verifiers, coverage, test order, or deferred/unreachable real evidence).

@@ -210,6 +210,103 @@ def test_parse_junit_missing_file_returns_empty(capsys):
     assert out == {"linked": {}, "untracked": []}
 
 
+def test_parse_junit_malformed_xml_returns_empty(tmp_path, capsys):
+    j = tmp_path / "truncated.xml"
+    j.write_text('<?xml version="1.0"?><testsuite name="s"><testcase name="t1"')
+    out = g.parse_junit(str(j), {})
+    assert out == {"linked": {}, "untracked": []}
+    assert "truncated.xml" in capsys.readouterr().err
+
+    bad_enc = tmp_path / "bad_enc.xml"
+    bad_enc.write_text('<?xml version="1.0" encoding="unknown-encoding-999"?><testsuite/>')
+    out_enc = g.parse_junit(str(bad_enc), {})
+    assert out_enc == {"linked": {}, "untracked": []}
+    assert "bad_enc.xml" in capsys.readouterr().err
+
+    cov_xml = tmp_path / "cov_as_junit.xml"
+    cov_xml.write_text('<?xml version="1.0"?><coverage line-rate="0.9"/>')
+    r_cov = g.collect_results([{"name": "cov-mistake", "results_file": str(cov_xml)}])
+    assert r_cov["parsed_suites"] == 0
+    assert r_cov["missing_files"] == [str(cov_xml)]
+
+    empty_suite = tmp_path / "empty_suite.xml"
+    empty_suite.write_text('<?xml version="1.0"?><testsuite name="empty" tests="0"/>')
+    r_empty = g.collect_results([{"name": "empty-ok", "results_file": str(empty_suite)}])
+    assert r_empty["parsed_suites"] == 1
+    assert r_empty["missing_files"] == []
+
+
+def test_collect_results_corrupt_junit_xml_records_infra_missing_and_preserves_baseline(tmp_path, monkeypatch, capsys):
+    sidecar = tmp_path / "tc-map.jsonl"
+    sidecar.write_text('{"test": "t_unit", "tc_ids": ["TC-UNIT-001"]}\n')
+    monkeypatch.setenv("TC_SIDECAR", str(sidecar))
+    lr_path = tmp_path / "lr.json"
+    monkeypatch.setenv("TC_LAST_RUN", str(lr_path))
+    baseline_bytes = json.dumps({
+        "schema_version": g.LAST_RUN_SCHEMA_VERSION,
+        "timestamp": "x", "linked": {"tc::TC-OLD": "通过"},
+    }).encode("utf-8")
+    lr_path.write_bytes(baseline_bytes)
+    valid = tmp_path / "unit.xml"
+    valid.write_text('<?xml version="1.0"?><testsuite name="unit"><testcase classname="m" name="t_unit"/></testsuite>')
+    corrupt = tmp_path / "corrupt.xml"
+    corrupt.write_text('<?xml version="1.0"?><testsuite name="api"><testcase')
+    cfg_path = tmp_path / ".report-config.json"
+    cfg_path.write_text(json.dumps({
+        "base_token": "",
+        "table_id": "",
+        "report_doc_url": "",
+        "test_suites": [
+            {"name": "unit", "layer": "unit", "results_file": str(valid)},
+            {"name": "api", "layer": "integration", "results_file": str(corrupt)},
+        ],
+    }))
+    r = g.collect_results(json.loads(cfg_path.read_text())["test_suites"])
+    assert r["parsed_suites"] == 1
+    assert r["missing_files"] == [str(corrupt)]
+    assert r["missing_layered_files"] == [str(corrupt)]
+    assert r["missing_layered_layers"] == ["integration"]
+
+    env = dict(os.environ)
+    env["TC_SIDECAR"] = str(sidecar)
+    env["TC_LAST_RUN"] = str(lr_path)
+    proc = g.subprocess.run(
+        [sys.executable, str(Path(g.__file__).resolve()), "--config", str(cfg_path),
+         "--author", "tester", "--version", "v0", "--fail-on", "any"],
+        capture_output=True, text=True, env=env,
+    )
+    assert proc.returncode == 1
+    assert "corrupt.xml" in proc.stderr
+    assert "🚨 基础设施失败" in proc.stdout
+    assert lr_path.read_bytes() == baseline_bytes
+
+
+def test_default_author_and_version_scrub_poisoned_git_env(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    clean_env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    clean_env["HOME"] = str(tmp_path)
+    clean_env["GIT_CONFIG_NOSYSTEM"] = "1"
+    g.subprocess.run(["git", "-c", "init.defaultBranch=main", "-C", str(repo), "init", "-q"], check=True, env=clean_env)
+    g.subprocess.run(["git", "-C", str(repo), "config", "user.email", "repo@example.invalid"], check=True, env=clean_env)
+    g.subprocess.run(["git", "-C", str(repo), "config", "user.name", "Repo Author"], check=True, env=clean_env)
+    g.subprocess.run(["git", "-C", str(repo), "config", "commit.gpgsign", "false"], check=True, env=clean_env)
+    (repo / "f.txt").write_text("hi\n")
+    g.subprocess.run(["git", "-C", str(repo), "add", "f.txt"], check=True, env=clean_env)
+    g.subprocess.run(["git", "-C", str(repo), "-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", "init"], check=True, env=clean_env)
+    g.subprocess.run(["git", "-C", str(repo), "tag", "v9.9.9"], check=True, env=clean_env)
+
+    monkeypatch.chdir(repo)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "nonexistent.git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(tmp_path / "nonexistent-wt"))
+    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "nonexistent.idx"))
+    monkeypatch.setenv("GIT_CONFIG_PARAMETERS", "'user.name=Poisoned Author'")
+    assert g._default_author() == "Repo Author"
+    assert g._default_version() == "v9.9.9"
+
+
 # ── Coverage parsing ──────────────────────────────────────────────────────────
 
 def test_parse_coverage_lines(tmp_path):

@@ -71,12 +71,24 @@ def _iter_src(paths, onerror=None):
             yield p
 
 
+def _path_segments(path):
+    return [s for s in re.split(r"[\\/]+", os.path.realpath(path)) if s and s != "."]
+
+
+def _allow_segments(raw):
+    return [s for s in re.split(r"[\\/]+", raw) if s and s != "."]
+
+
 def _allowed(path, allow):
-    # Segment-anchored: `--allow=render` matches a `render/` path component, NOT the substring inside
-    # `surrender.ts`. A multi-segment entry (`src/render`) matches as a contiguous run of segments.
-    segs = [s for s in re.split(r"[\\/]+", path) if s]
+    # Segment-anchored against the resolved filesystem path (`os.path.realpath`): `--allow=render`
+    # matches a real `render/` path component (including `--allow=./render`), NOT the substring
+    # inside `surrender.ts`, NOT a traversed lexical parent (`render/../src/colors.go`), and NOT
+    # a symlink-parent hop (`src/link/../render/colors.go` resolving outside `src/render`).
+    # Allowlist entries containing any raw `..` segment (`--allow=..`, `--allow=render/../src`)
+    # are rejected before normalization so parent segments never collapse into broader prefixes.
+    segs = _path_segments(path)
     for a in allow:
-        parts = [p for p in re.split(r"[\\/]+", a) if p]
+        parts = _allow_segments(a)
         if not parts:
             continue
         for i in range(len(segs) - len(parts) + 1):
@@ -104,21 +116,29 @@ def main(argv):
     if not paths:
         print("usage: client-terminal-ansi-check.py <src-path> [...] [--allow=<substr>]...", file=sys.stderr)
         return 2
-    walk_errs = []
+    files = []
     for p in paths:
         if not os.path.exists(p):
             print(f"client-ansi: path not found: {p} — inconclusive", file=sys.stderr)
             return 2
-        if os.path.isfile(p) and os.path.splitext(p)[1] not in SOURCE_EXT:
+        if os.path.isdir(p):
+            walk_errs = []
+            sub = list(_iter_src([p], onerror=walk_errs.append))
+            if walk_errs:
+                print(f"client-ansi: cannot read part of scope ({walk_errs[0]}) — inconclusive", file=sys.stderr)
+                return 2
+            if not sub:
+                print(f"client-ansi: no source files under directory: {p} — inconclusive", file=sys.stderr)
+                return 2
+            files.extend(sub)
+        elif os.path.isfile(p):
+            if os.path.splitext(p)[1] not in SOURCE_EXT:
+                print(f"client-ansi: unsupported file type: {p} — inconclusive", file=sys.stderr)
+                return 2
+            files.append(p)
+        else:
             print(f"client-ansi: unsupported file type: {p} — inconclusive", file=sys.stderr)
             return 2
-        if os.path.isdir(p) and not any(_iter_src([p], onerror=walk_errs.append)):
-            print(f"client-ansi: no source files under directory: {p} — inconclusive", file=sys.stderr)
-            return 2
-    files = list(_iter_src(paths, onerror=walk_errs.append))
-    if walk_errs:
-        print(f"client-ansi: cannot read part of scope ({walk_errs[0]}) — inconclusive", file=sys.stderr)
-        return 2
     if not files:
         print("client-ansi: no source files in scope — inconclusive", file=sys.stderr)
         return 2

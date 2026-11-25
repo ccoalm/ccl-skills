@@ -1,6 +1,6 @@
 # Vendored Contract Drift Checklist
 
-Use this table before reporting a vendored external contract or conformance drift gate result.
+Use this table before reporting a vendored external contract or conformance drift gate result. The load-bearing invariants are the checklist's own rows — absent-sibling fail-closed, upstream authenticity as a separate gate, single-canonical-producer recipe/wrapper that stays network-/delete-/exec-free beyond the canonical script with fetch/install only via a human-authorized sync gate, clean+RED-or-N/A per applicable row, RED only in scratch — applied from the checklist, not from memory. This is the test mechanic for the vendor-sync gate that `product-rd-workflow` cross-repo coordination routes here.
 
 **Scope (what counts as an external contract/conformance artifact):** API/schema/protobuf/wire-format definitions, envelope/rule catalogs, validators, or conformance fixtures vendored from an upstream source. Exclude routine dependency lockfile or digest-pin checks only when they do not vendor that content; ambiguous vendored upstream artifacts default to in-scope.
 
