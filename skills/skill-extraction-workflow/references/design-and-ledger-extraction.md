@@ -1,6 +1,6 @@
 # Design, Figma, And Ledger Extraction Methods
 
-Source-coverage matrices, candidate-rule ledgers, UI/UX judgment-delta matrices, decision-persistence rules, Figma node-reading procedures, and execution-completeness checks relocated from `references/source-to-skill-extraction.md`. Load this reference during broad source inventories or when extracting design, Figma, frontend, or client skills.
+Source-coverage matrices, candidate-rule ledgers, UI/UX judgment-delta matrices, decision-persistence rules, Figma node-reading procedures, and execution-completeness checks relocated from `references/source-to-skill-extraction.md`. Load this reference for any source-derived rule extraction (to apply `## Extraction Ledger` during analysis and `## Decision Persistence` before closeout), as well as broad source inventories and design, Figma, frontend, or client extractions.
 
 ## Source Coverage Matrix
 

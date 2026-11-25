@@ -49,7 +49,8 @@ python test/scripts/gen_report.py \
 - md 同步匹配必须以 用例ID 为唯一键；模块名或功能点相同不代表是同一条记录
 - 若 md 先于 Bitable 被修改（如直接编辑文件），需将 md 变更反向同步到 Bitable，再按 update 工作流补信息流转
 - **漂移检查**：定期运行 `python gen_report.py --config test/.report-config.json --diff-md test/cases/all.md` 显示 md 与 Bitable 的 added/removed/changed；废弃记录自动排除（不在 md 里属正常）；多人编辑后必跑一次再 commit
-- **JUnit XML 损坏防覆盖**：`gen_report.py` 解析套件结果遇到截断、非法编码或非 `testsuite`/`testsuites` 根节点 XML 时，必须按基础设施失败记录缺失套件并保留既有 `last-run.json` 基线，不得覆盖完整快照
+- **批量更新禁直写信息流转**：批量更新预检必须拒绝直写信息流转字段，仅允许通过 `信息流转追加` 走读后合并与 `TC_INFO_KEEP` 滚动保留，防止无条件 `+record-upsert` 覆盖历史审计记录
+- **JUnit XML 损坏防覆盖**：`gen_report.py` 解析套件结果遇到截断、非法/不支持的多字节编码、XML 命名空间或非 `testsuite`/`testsuites` 根节点 XML 时，必须按基础设施失败记录缺失套件并保留既有 `last-run.json` 基线，不得覆盖完整快照
 - **版本钉扎**：当仓内测试代码/脚本按某条 TC 实现时，在实现侧记录该 TC 的修订标识——用**定义字段的规范化快照哈希**（或 Bitable 的不可变 record 修订号，若可得）；`[姓名 日期]` 不够（同人同日二次修订会撞标识，钉住旧版仍比对相等）。实现前先比对，**回写/提测前再验一次，且回写本身走与认领相同的修订条件更新**（先验后写仍是两步——验证通过与写入之间的并发修改只有条件写能挡）——哈希只有相等性判断：**任何一次不一致都视为分歧，停下、先做源对账**（更新钉扎侧并使差异可评审后再继续）；「更新/更旧」的说法仅当平台提供不可变单调修订号时才可用；发现源记录 stale/自相矛盾时**停下先修源记录**，不得按旧版实现后事后补
 - **认领防冲突**：多人/多 agent 并发按 TC 实现时，认领必须是**原子的修订条件更新**（仅当记录修订仍等于读取时的修订才写入——平台支持的 CAS/乐观锁语义）或走**串行化认领协调者**（单写入口）。「读空→写」是 TOCTOU；「写后回读」也不等价——A 回读成功后仍可被 B 顶掉、双方各自都验证通过。两种安全机制都不可得时，**并发认领在该表上不受支持：停下改走人工/单线分配，不得按回读结果继续**。字段已有他人活跃认领时不得覆盖，改为联系认领人或换条目
 - `+record-upsert --record-id` 中的 record_id 是 Bitable 内部 ID，必须先用 `get_record_index()` 从 用例ID 查出，不能直接用 用例ID 代替
@@ -200,8 +201,11 @@ updates = [
     {"用例ID": "TC-SY-007", "状态": "跳过",  "信息流转追加": "[李四 2026-05-28] 功能已废弃"},
 ]
 
-# Precondition: single serialized writer for TABLE_ID. Validate all target IDs up front,
-# read/merge 信息流转 before writing, and send one atomic +record-upsert per record.
+# Precondition: single serialized writer for TABLE_ID. Reject direct 信息流转 overwrites,
+# validate all target IDs up front, read/merge 信息流转追加, and send one +record-upsert per record.
+direct_log_ids = [u.get("用例ID", "<missing>") for u in updates if "信息流转" in u]
+if direct_log_ids:
+    raise ValueError(f"Use '信息流转追加' instead of direct '信息流转' overwrite for: {direct_log_ids}")
 index = get_record_index(BASE_TOKEN, TABLE_ID)
 missing_ids = [u["用例ID"] for u in updates if u["用例ID"] not in index]
 if missing_ids:

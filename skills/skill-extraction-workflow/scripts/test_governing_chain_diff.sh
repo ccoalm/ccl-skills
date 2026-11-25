@@ -513,33 +513,106 @@ $HOST_A
 $HOST_A
 "
 
-mkdir -p "$WORK/githome"
+run_case "fence: unclosed list-nested fence ends on dedent to root rule" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+  1. Ordered step introducing an unclosed indented fence:
+
+     \`\`\`markdown
+     - Illustrative list rule inside unclosed list-nested fence.
+
+$HOST_A
+  - $OBLIGATION
+" \
+"## Core Rules
+
+  1. Ordered step introducing an unclosed indented fence:
+
+     \`\`\`markdown
+     - Illustrative list rule inside unclosed list-nested fence.
+
+$HOST_A
+"
+
+NBSP=$'\xc2\xa0'
+run_case "fence: column-0 NBSP line is non-blank and closes unclosed list fence" 1 "left-a-rewritten-line" \
+"## Core Rules
+
+1. Ordered step introducing an unclosed 3-space list fence:
+
+   \`\`\`markdown
+   - Illustrative list rule inside unclosed 3-space list fence.
+$NBSP
+   $HOST_A
+     - $OBLIGATION
+" \
+"## Core Rules
+
+1. Ordered step introducing an unclosed 3-space list fence:
+
+   \`\`\`markdown
+   - Illustrative list rule inside unclosed 3-space list fence.
+$NBSP
+   $HOST_A
+"
+
+lazy_env_check="$(GIT_NO_LAZY_FETCH=0 GIT_DIR=/poison python3 - "$TOOL" <<'PYEOF'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location('gcd', sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+sys.modules['gcd'] = m
+spec.loader.exec_module(m)
+clean = m._git_clean_env()
+print("ok" if clean.get("GIT_NO_LAZY_FETCH") == "1" and "GIT_DIR" not in clean else f"bad:{clean.get('GIT_NO_LAZY_FETCH')!r}")
+PYEOF
+)"
+if [ "$lazy_env_check" = "ok" ]; then
+  printf 'PASS %s\n' "git: _git_clean_env sets GIT_NO_LAZY_FETCH=1 after scrubbing GIT_*"
+  pass=$((pass + 1))
+else
+  printf 'FAIL %-46s got %s\n' "git: _git_clean_env sets GIT_NO_LAZY_FETCH=1 after scrubbing GIT_*" "$lazy_env_check"
+  fail=$((fail + 1))
+fi
+
+mkdir -p "$WORK/githome" "$WORK/xdg/git" "$WORK/caller-bad-xdg/git"
+cat >"$WORK/caller-bad-xdg/git/config" <<'GITCFG'
+[filter "poison"]
+	clean = false
+	smudge = false
+	required = true
+GITCFG
+printf '* filter=poison\n' >"$WORK/caller-bad-xdg/git/attributes"
 if (
-  while IFS='=' read -r k _; do
-    case "$k" in GIT_*) unset "$k" ;; esac
-  done < <(env)
-  export HOME="$WORK/githome" GIT_CONFIG_NOSYSTEM=1
-  git -c init.defaultBranch=main -C "$WORK" init -q gitrepo &&
-  git -C "$WORK/gitrepo" config user.email "test@example.invalid" &&
-  git -C "$WORK/gitrepo" config user.name "Test" &&
-  git -C "$WORK/gitrepo" config commit.gpgsign false &&
-  printf '## Core Rules\n\n%s\n  - %s\n' "$HOST_A" "$OBLIGATION" >"$WORK/gitrepo/doc.md" &&
-  git -C "$WORK/gitrepo" add doc.md &&
-  git -C "$WORK/gitrepo" -c core.hooksPath=/dev/null commit -q -m "base" &&
-  printf '## Core Rules\n\n%s\n' "$HOST_A" >"$WORK/gitrepo/doc.md" &&
-  git -C "$WORK/gitrepo" add doc.md &&
-  git -C "$WORK/gitrepo" -c core.hooksPath=/dev/null commit -q -m "drop" &&
-  git -C "$WORK/gitrepo" replace -f HEAD HEAD~1
+  export XDG_CONFIG_HOME="$WORK/caller-bad-xdg"
+  (
+    while IFS='=' read -r k _; do
+      case "$k" in GIT_*) unset "$k" ;; esac
+    done < <(env)
+    export HOME="$WORK/githome" XDG_CONFIG_HOME="$WORK/xdg" GIT_CONFIG_NOSYSTEM=1
+    git -c init.defaultBranch=main -C "$WORK" init -q gitrepo &&
+    git -C "$WORK/gitrepo" config user.email "test@example.invalid" &&
+    git -C "$WORK/gitrepo" config user.name "Test" &&
+    git -C "$WORK/gitrepo" config commit.gpgsign false &&
+    printf '## Core Rules\n\n%s\n  - %s\n' "$HOST_A" "$OBLIGATION" >"$WORK/gitrepo/doc.md" &&
+    git -C "$WORK/gitrepo" add doc.md &&
+    git -C "$WORK/gitrepo" -c core.hooksPath=/dev/null commit -q -m "base" &&
+    printf '## Core Rules\n\n%s\n' "$HOST_A" >"$WORK/gitrepo/doc.md" &&
+    git -C "$WORK/gitrepo" add doc.md &&
+    git -C "$WORK/gitrepo" -c core.hooksPath=/dev/null commit -q -m "drop" &&
+    git -C "$WORK/gitrepo" replace -f HEAD HEAD~1
+  )
 ); then
-  rev_out="$(GIT_DIR="$WORK/poison-git-dir" GIT_WORK_TREE="$WORK/poison-wt" \
+  rev_out="$(HOME="$WORK/githome" XDG_CONFIG_HOME="$WORK/xdg" \
+    GIT_DIR="$WORK/poison-git-dir" GIT_WORK_TREE="$WORK/poison-wt" \
     GIT_INDEX_FILE="$WORK/poison.idx" GIT_CONFIG_PARAMETERS="'core.worktree=/nonexistent'" \
+    GIT_TRACE="$WORK/poison-trace.log" \
     python3 "$TOOL" --repo "$WORK/gitrepo" --rev HEAD~1 HEAD doc.md 2>&1)"
   rev_rc=$?
-  if [ "$rev_rc" -eq 1 ] && grep -q '^derived row set: 1$' <<<"$rev_out"; then
-    printf 'PASS %s\n' "git: --rev scrubs GIT_DIR/GIT_CONFIG_PARAMETERS & ignores replace refs"
+  if [ "$rev_rc" -eq 1 ] && [ ! -e "$WORK/poison-trace.log" ] && grep -q '^derived row set: 1$' <<<"$rev_out"; then
+    printf 'PASS %s\n' "git: --rev isolates XDG/HOME, scrubs GIT_* (incl. GIT_TRACE), & ignores replace refs"
     pass=$((pass + 1))
   else
-    printf 'FAIL %-46s rc=%s out=%s\n' "git: --rev scrubs GIT_DIR/GIT_CONFIG_PARAMETERS & ignores replace refs" "$rev_rc" "$rev_out"
+    printf 'FAIL %-46s rc=%s out=%s\n' "git: --rev isolates XDG/HOME, scrubs GIT_* (incl. GIT_TRACE), & ignores replace refs" "$rev_rc" "$rev_out"
     fail=$((fail + 1))
   fi
 else

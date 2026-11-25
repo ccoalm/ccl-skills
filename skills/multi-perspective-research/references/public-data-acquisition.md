@@ -34,17 +34,13 @@ UA="<项目或用途> <联系邮箱>"                 # 声明身份，不伪装
 OUT=./data;  mkdir -p "$OUT"                   # 已验收的成品，**跨次保留**，续跑靠它
 DL=$(mktemp -d) || { echo "无法创建临时目录" >&2; exit 1; }
 trap 'rm -rf -- "$DL"' EXIT                    # 一次性中间件（解压、转图），退出即清理
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 143' TERM                           # 可捕获的中断先转成退出，再触发 EXIT 清理
+trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM  # 中断先转退出以触发 EXIT
 
 # 原子发布依赖同目录硬链接；在任何下载前验证，避免整批下载后才逐个失败。
-link_probe=$(mktemp "$OUT/.hardlink-probe.XXXXXX") \
-  || { echo "无法在成品目录创建硬链接探针: $OUT" >&2; exit 1; }
+link_probe=$(mktemp "$OUT/.hardlink-probe.XXXXXX") || { echo "无法创建硬链接探针: $OUT" >&2; exit 1; }
 if ! ln -- "$link_probe" "$link_probe.link" 2>/dev/null; then
   rm -f -- "$link_probe" "$link_probe.link"
-  echo "成品目录不支持硬链接，请把 OUT 移到支持硬链接的文件系统: $OUT" >&2
-  exit 1
+  echo "成品目录不支持硬链接，请把 OUT 移到支持硬链接的文件系统: $OUT" >&2; exit 1
 fi
 rm -f -- "$link_probe" "$link_probe.link"
 
@@ -53,8 +49,7 @@ v=$(curl --version | awk 'NR==1{print $2}')
 [ "$(printf '%s\n8.4.0\n' "$v" | sort -V | head -1)" = "8.4.0" ] \
   || { echo "curl $v < 8.4.0：对未知长度响应没有字节上限，换下载器或先升级" >&2; exit 1; }
 
-# EXPECT_MIME：**正向白名单**，由调用方按这次要的东西设定。
-# 别用"排除 text/html"的黑名单——那等于默认接受一切没想到的类型。
+# EXPECT_MIME：正向白名单（勿用"排除 text/html"黑名单，那等于默认放行未知类型）
 EXPECT_MIME='application/json text/plain'
 MAX_BYTES=$((200*1024*1024))          # 与 --max-filesize 同一个上限，别只写在 curl 上
 
@@ -62,20 +57,16 @@ MAX_BYTES=$((200*1024*1024))          # 与 --max-filesize 同一个上限，别
 accept() {
   local f=$1 mime bytes
   [ -s "$f" ] || { echo "空响应" >&2; return 1; }
-  # 体积也要在这里查一遍：新下载的有 curl --max-filesize 兜着，
-  # 但走 SKIP 的已存在文件从没经过那道闸——只查类型就会让一个巨大的旧件进解析器。
-  # BSD/macOS 的 wc 会给输出补空格（`      11`），不去掉会被判成非整数
+  # SKIP 的既有文件没经过 curl --max-filesize，体积必须在此自检；去空白兼容 BSD wc
   bytes=$(wc -c < "$f" | tr -d '[:space:]') || { echo "无法测体积" >&2; return 1; }
   case "$bytes" in ''|*[!0-9]*) echo "体积读数异常: '${bytes}'" >&2; return 1 ;; esac
   [ "$bytes" -le "$MAX_BYTES" ] || { echo "超过体积上限：${bytes} > ${MAX_BYTES}" >&2; return 1; }
-  # file 可能没装、可能执行失败。不显式接住的话 $(...) 是空串、case 无分支命中，
-  # accept 会以 0 返回——未验收的字节就被当成成品发布了。
+  # 显式接住 file 失败或空输出，防止 $(...) 空串落空并以 0 误放行
   mime=$(file -b --mime-type "$f") || { echo "file 执行失败，无法判定类型" >&2; return 1; }
   [ -n "$mime" ] || { echo "无法判定类型（file 返回空）" >&2; return 1; }
   case " $EXPECT_MIME " in
     *" $mime "*) : ;;
-    # ⚠ 用 ${mime} 而不是 $mime：变量名紧跟全角标点时，shell 会把标点吃进名字
-    #   （set -u 下报 `mime?: unbound variable`）。这条只在错误分支上，最难被手测到。
+    # 用 ${mime} 防紧跟全角标点时被吃进变量名（set -u 下 unbound variable）
     *) echo "类型不符：拿到 ${mime}，预期其中之一：${EXPECT_MIME}" >&2; return 1 ;;
   esac
 }
@@ -85,38 +76,57 @@ accept() {
 #      2 = 目标路径不对；3 = 与并发调用撞了，目标已被别人发布
 # FETCHED=1/0 区分"本轮真的下了"与"跳过"——要计数就读它，别拿返回码当计数器
 fetch() {
-  local out=$1 url=$2; shift 2
+  local out=$1 url=$2 out_dir leaf real_out cur rel seg; shift 2
   FETCHED=0
-  if [ -L "$out" ]; then
-    echo "目标路径不得是符号链接: $out" >&2; return 2
+  case "$out" in ''|*/|.|..|*/.|*/..|*$'\n'*) echo "目标路径非法: $out" >&2; return 2 ;; esac
+  case "${OUT:-.}" in *$'\n'*) echo "成品目录路径非法: ${OUT:-.}" >&2; return 2 ;; esac
+  real_out=$(cd -P -- "${OUT:-.}" 2>/dev/null && pwd -P && printf x) \
+    || { echo "成品目录不可解析: ${OUT:-.}" >&2; return 2; }
+  real_out=${real_out%$'\nx'}
+  case "$out" in */*) out_dir=${out%/*}; leaf=${out##*/}; [ -n "$out_dir" ] || out_dir=/ ;; *) out_dir=.; leaf=$out ;; esac
+  if [ "$out_dir" = "${OUT:-.}" ] || [ "$out_dir" = "${OUT%/}" ] || [ "$out_dir" = "$real_out" ]; then
+    cur=$real_out; rel=""
+  elif [ "${OUT:-.}" != "/" ] && [ "${out_dir#"${OUT%/}/"}" != "$out_dir" ]; then
+    cur=$real_out; rel=${out_dir#"${OUT%/}/"}
+  elif [ "$real_out" != "/" ] && [ "${out_dir#"$real_out/"}" != "$out_dir" ]; then
+    cur=$real_out; rel=${out_dir#"$real_out/"}
+  elif [ "$real_out" = "/" ] && [ "${out_dir#/}" != "$out_dir" ]; then
+    cur=/; rel=${out_dir#/}
+  elif [ "${out_dir#/}" = "$out_dir" ]; then
+    cur=$(pwd -P && printf x) || return 2; cur=${cur%$'\nx'}
+    case "$cur/" in "$real_out/"*) rel=$out_dir ;; *) echo "当前目录越出受控成品目录 ($OUT): $out" >&2; return 2 ;; esac
+  else
+    echo "目标父目录越出受控成品目录 ($OUT): $out" >&2; return 2
   fi
+  while [ -n "$rel" ]; do
+    case "$rel" in */*) seg=${rel%%/*}; rel=${rel#*/} ;; *) seg=$rel; rel="" ;; esac
+    case "$seg" in ''|.) continue ;; ..)
+      case "$cur/" in "$real_out/"?*) cur=${cur%/*}; [ -n "$cur" ] || cur=/ ;; *) echo "目标父目录越出受控成品目录 ($OUT): $out" >&2; return 2 ;; esac ;;
+    *)
+      [ ! -L "$cur/$seg" ] && [ -d "$cur/$seg" ] || { echo "目标父目录不存在或是符号链接: $out" >&2; return 2; }
+      cur="$cur/$seg" ;;
+    esac
+  done
+  out="$cur/$leaf"
+  [ ! -L "$out" ] || { echo "目标路径不得是符号链接: $out" >&2; return 2; }
   if [ -e "$out" ]; then
     [ -f "$out" ] && [ -s "$out" ] \
       || { echo "目标已存在但不是非空普通文件（目录或空文件？）: $out" >&2; return 2; }
-    # 已存在的文件也要过验收：它可能是别的工具、上一版脚本或手工拷进来的。
-    # 只看"存在且非空"就放行，等于把没经过白名单的内容当成已验收成品。
+    # 已存在的文件也须过验收，防止手工拷入或旧版残留绕过白名单
     accept "$out" || { echo "已存在的文件未通过验收: $out" >&2; return 1; }
     echo "SKIP $out" >&2; return 0
   fi
   local part
-  part=$(mktemp "$out.part.XXXXXX") \
-    || { echo "无法创建同目录临时文件（父目录是否存在？）: $out" >&2; return 1; }
-  curl --fail --show-error --location --get \
-       --proto '=https' --proto-redir '=https' --max-redirs 3 \
-       --max-filesize "$MAX_BYTES" --max-time 900 \
-       -H "User-Agent: $UA" \
+  part=$(mktemp "$out.part.XXXXXX") || { echo "无法创建同目录临时文件（父目录是否存在？）: $out" >&2; return 1; }
+  curl --fail --show-error --location --get --proto '=https' --proto-redir '=https' --max-redirs 3 \
+       --max-filesize "$MAX_BYTES" --max-time 900 -H "User-Agent: $UA" \
        -o "$part" "$url" "$@" || { rm -f -- "$part"; return 1; }
   accept "$part" || { rm -f -- "$part"; return 1; }   # 没验收就当这次没取到
-  # 发布用 ln 而不是 mv -f：ln 在目标已存在时**失败**，所以两个并发调用不会
-  # 相互静默覆盖。mv -f 是无条件覆盖，后完成的那个会把先发布的成品换掉，
-  # 而两边都返回成功——最终内容取决于竞态。
-  if ln -- "$part" "$out" 2>/dev/null; then
-    rm -f -- "$part"; FETCHED=1; return 0
-  fi
+  # 发布用 ln 不用 mv -f：目标已存在时 ln 失败，防止并发调用静默覆盖
+  if ln -- "$part" "$out" 2>/dev/null; then rm -f -- "$part"; FETCHED=1; return 0; fi
   rm -f -- "$part"
   [ -f "$out" ] && { echo "并发冲突：$out 已被另一个调用发布，本次丢弃" >&2; return 3; }
-  echo "发布失败（目录需支持同目录硬链接；若已支持，再查权限与配额）：$out" >&2
-  return 1
+  echo "发布失败（目录需支持同目录硬链接；若已支持，再查权限与配额）：$out" >&2; return 1
 }
 ```
 
@@ -136,8 +146,8 @@ fetch() {
 
 ⚠ 三个易错点：
 
-- `$OUT` 要**先 `mkdir -p`**。`fetch` 不建目录，父目录不存在时会在下载前明确报“无法创建同目录临时文件”，避免把本地路径错误误诊成网络问题
-- **`$OUT` 必须是调用方独占的受控目录**（勿使用多方共写的公共临时目录）：`[ -L "$out" ]` 检查拦住的是目录内既有的符号链接；路径检查与 `accept "$out"` 之间假设没有不可信并发写者把普通文件替换成符号链接
+- `$OUT`（及子目录）要**先 `mkdir -p`**。`fetch` 不建目录，父目录不存在、含符号链接或解析到 `$OUT` 之外时会在下载前直接返回 `2`，避免把本地路径错误误诊成网络问题或越界读写
+- **`$OUT` 必须是调用方独占的受控目录**（勿使用多方共写的公共临时目录）：`[ -L "$out" ]` 与父目录 `pwd -P` 校验拦住的是既有的末端或中间目录符号链接；路径检查与 `accept "$out"` / `ln` 之间假设没有不可信并发写者替换目录项
 - **要续跑的东西不能放 `$DL`**。`$DL` 在退出时被 `trap` 删掉，成品放进去等于每次都从头下。成品进 `$OUT`，只有解压产物、转出来的图这类一次性中间件进 `$DL`
 
 | 参数 | 它到底管什么 |

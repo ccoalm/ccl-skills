@@ -725,6 +725,16 @@ assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'boun
 assert_same_bullet "$EXTRACTION_SKILL" 'A blocked source read is not closed by naming the blockage' \
   "references/source-to-skill-extraction.md#blocked-verification-and-source-read-remediation" \
   "controlled escalation (reachability: entrypoint routes to the Blocked Verification section)"
+DESIGN_LEDGER_REF="$REPO_ROOT/skills/skill-extraction-workflow/references/design-and-ledger-extraction.md"
+assert_same_bullet "$EXTRACTION_SKILL" 'Keep an extraction ledger during analysis' \
+  "references/design-and-ledger-extraction.md#extraction-ledger" \
+  "ledger split (reachability: Step 4 routes candidate-rule ledger to design-and-ledger-extraction.md#extraction-ledger)"
+assert_same_bullet "$EXTRACTION_SKILL" 'Record the provenance-to-target diff for any extraction beyond wording-only cleanup.' \
+  "references/design-and-ledger-extraction.md#decision-persistence" \
+  "ledger split (reachability: Step 6 routes decision persistence to design-and-ledger-extraction.md#decision-persistence)"
+assert_same_line "$DESIGN_LEDGER_REF" 'Load this reference for any source-derived rule extraction' \
+  '`## Extraction Ledger` during analysis and `## Decision Persistence` before closeout' \
+  "ledger split (scope: design-and-ledger-extraction.md applies to any source-derived rule extraction)"
 
 # --- Family 9: review-program process controls (multi-round program discipline) ---
 # One assertion per obligation sentence, SECTION-BOUND to the owning rule (review

@@ -12,7 +12,7 @@ Domain methods own extraction procedure and routing only; target architecture, i
 | --- | --- |
 | [Database And DAL Extraction Method](backend-data-and-redis-extraction.md#database-and-dal-extraction-method) | Models, DDL, migrations, generated DAL, repositories, query builders, transactions, data migrations, sharding, or DB/cache consistency code |
 | [Redis Extraction Method](backend-data-and-redis-extraction.md#redis-extraction-method) | Cache adapters, key builders, locks, Lua/CAS scripts, counters, rate limiters, idempotency stores, streams, Pub/Sub, queues, or Redis-backed coordination |
-| [Design, Figma, And Ledger Extraction Methods](design-and-ledger-extraction.md) | Broad source coverage matrices, candidate-rule ledgers, UI/UX judgment-delta matrices, Figma node reading, or execution-completeness checks |
+| [Design, Figma, And Ledger Extraction Methods](design-and-ledger-extraction.md) | Any source-derived rule extraction (candidate-rule ledgers and durable decision persistence), broad source-coverage matrices, UI/UX judgment-delta matrices, Figma node reading, or execution-completeness checks |
 
 Keep this file as the domain method index: keep 1–2 short domain methods inline when small, and once a third broad method is needed, split domain-specific extraction methods (such as database/DAL, Redis, Figma/design, HTTP/API, queue/MQ, auth, observability, or frontend state extraction) into focused reference files and leave links here.
 
@@ -435,7 +435,7 @@ When evidence is sparse, stale, or one-sided:
 - State what evidence would raise confidence: repeated examples, tests, production checklists, review records, source access, or a confirmed user decision.
 - Avoid filling gaps with invented links, invented quotes, generic search results, or copied boilerplate from unrelated skills.
 
-For broad source-coverage matrices, candidate-rule ledgers, UI/UX judgment-delta matrices, decision-persistence rules, Figma node-reading methods, and execution-completeness checks, load [design-and-ledger-extraction.md](design-and-ledger-extraction.md).
+For candidate-rule ledgers and durable decision persistence (required on every source-derived rule extraction), broad source-coverage matrices, UI/UX judgment-delta matrices, Figma node-reading methods, and execution-completeness checks, load [design-and-ledger-extraction.md](design-and-ledger-extraction.md).
 
 ## Extraction Questions
 

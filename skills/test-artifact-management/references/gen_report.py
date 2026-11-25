@@ -76,50 +76,10 @@ DATE_TODAY = datetime.now().strftime("%Y-%m-%d")
 _CI_ENV_VARS = ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "CIRCLECI", "JENKINS_URL",
                 "BUILDKITE", "TF_BUILD", "CODEBUILD_BUILD_ID")
 
-_SCRUB_GIT_ENV_EXACT = frozenset({
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_CEILING_DIRECTORIES",
-    "GIT_COMMON_DIR",
-    "GIT_CONFIG",
-    "GIT_CONFIG_COUNT",
-    "GIT_CONFIG_GLOBAL",
-    "GIT_CONFIG_NOSYSTEM",
-    "GIT_CONFIG_PARAMETERS",
-    "GIT_CONFIG_SYSTEM",
-    "GIT_DIFF_OPTS",
-    "GIT_DIR",
-    "GIT_DISCOVERY_ACROSS_FILESYSTEM",
-    "GIT_EXEC_PATH",
-    "GIT_EXTERNAL_DIFF",
-    "GIT_GLOB_PATHSPECS",
-    "GIT_GRAFT_FILE",
-    "GIT_ICASE_PATHSPECS",
-    "GIT_IMPLICIT_WORK_TREE",
-    "GIT_INDEX_FILE",
-    "GIT_INTERNAL_SUPER_PREFIX",
-    "GIT_LITERAL_PATHSPECS",
-    "GIT_NAMESPACE",
-    "GIT_NOGLOB_PATHSPECS",
-    "GIT_NO_REPLACE_OBJECTS",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_PAGER",
-    "GIT_PREFIX",
-    "GIT_QUARANTINE_PATH",
-    "GIT_REPLACE_REF_BASE",
-    "GIT_SHALLOW_FILE",
-    "GIT_SUPER_PREFIX",
-    "GIT_TEMPLATE_DIR",
-    "GIT_WORK_TREE",
-})
-
-
 def _git_clean_env() -> dict[str, str]:
-    return {
-        k: v
-        for k, v in os.environ.items()
-        if k not in _SCRUB_GIT_ENV_EXACT
-        and not k.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))
-    }
+    clean = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    clean["GIT_NO_LAZY_FETCH"] = "1"
+    return clean
 
 
 def _default_config() -> str:
@@ -267,14 +227,16 @@ def _parse_junit_checked(results_file: str,
 
     try:
         tree = ET.parse(p)
-    except (ET.ParseError, OSError, LookupError) as exc:
+    except (ET.ParseError, OSError, LookupError, ValueError) as exc:
         print(f"  ⚠ Invalid JUnit XML {results_file}: {exc} — skipping", file=sys.stderr)
         return {"linked": {}, "untracked": []}, str(exc)
     root = tree.getroot()
-    root_tag = root.tag.rsplit("}", 1)[-1]
-    if root_tag not in ("testsuite", "testsuites"):
-        print(f"  ⚠ Non-JUnit XML root <{root_tag}> in {results_file} — skipping", file=sys.stderr)
-        return {"linked": {}, "untracked": []}, f"unexpected root <{root_tag}>"
+    if any("{" in el.tag for el in root.iter()):
+        print(f"  ⚠ Namespaced XML unsupported in {results_file} — skipping", file=sys.stderr)
+        return {"linked": {}, "untracked": []}, "namespaced XML unsupported"
+    if root.tag not in ("testsuite", "testsuites"):
+        print(f"  ⚠ Non-JUnit XML root <{root.tag}> in {results_file} — skipping", file=sys.stderr)
+        return {"linked": {}, "untracked": []}, f"unexpected root <{root.tag}>"
     testcases = root.findall(".//testcase")
 
     sidecar = sidecar or {}

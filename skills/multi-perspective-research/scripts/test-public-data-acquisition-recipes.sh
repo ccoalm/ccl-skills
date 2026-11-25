@@ -24,9 +24,11 @@ check(){ if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "期望 $3，实得 $2"
 # ---- 块清单：每个可运行片段必须**显式**声明是被执行还是被豁免 ----
 # 硬编码 sh[0]/py[0] 的老做法会让新加的可运行块悄悄不被覆盖（评审 P2）。
 # 这里按内容指纹认块；出现未登记的块就红，逼作者要么覆盖它、要么写明为何不可执行。
+EXPECTED_MANIFEST_IDS="fetch/accept,curl-size-log,curl-fail-log,cdx,catalog,paging,pdf-probe,pdf-render,alias-parse,col-attrib,ocr,tag-fallback"
 cat > "$WORK/check-block-manifest.py" <<'PY'
-import re,sys
+import os,re,sys
 doc,work=sys.argv[1],sys.argv[2]
+expected_ids=[s for s in os.environ.get("EXPECTED_MANIFEST_IDS","").split(",") if s]
 t=open(doc,encoding='utf-8').read()
 # 枚举所有 fence，而不是只枚举认识的语言；新标签/无标签块也必须进入处置。
 blocks=[(m.group(1).strip(),m.group(2))
@@ -47,6 +49,9 @@ MANIFEST=[
  ("ocr",           lambda l,b: l=='swift' and 'VNRecognizeTextRequest' in b,    "exempt: 需 macOS Vision + swiftc，另行手测"),
  ("tag-fallback",  lambda l,b: l=='javascript' and 'concept(t)' in b,           "exempt: 需真实结构化接口"),
 ]
+manifest_ids=[name for name,_,_ in MANIFEST]
+if not expected_ids or manifest_ids != expected_ids:
+    print(f"MANIFEST 登记集缺失或与独立基线不一致: {manifest_ids} != {expected_ids}"); sys.exit(1)
 unmatched=[]
 for lang,body in blocks:
     if not any(pred(lang,body) for _,pred,_ in MANIFEST):
@@ -55,17 +60,24 @@ if unmatched:
     print("未登记的可运行块（要么覆盖它，要么在 MANIFEST 里写明豁免理由）：")
     for lang,head in unmatched: print(f"   [{lang}] {head}")
     sys.exit(1)
-# 核验全部已登记块（含 exempt 块，防止静默删改或重复匹配）并抽出要执行的块
+# 核验全部已登记块（含 exempt 块）与文档代码块的一一对应关系，防止静默同删或多重命中
+claimed={}
 for name,pred,how in MANIFEST:
-    hit=[b for l,b in blocks if pred(l,b)]
-    if len(hit)!=1:
-        print(f"块 {name} 命中 {len(hit)} 个，判据需更新"); sys.exit(1)
+    hit_idxs=[idx for idx,(l,b) in enumerate(blocks) if pred(l,b)]
+    if len(hit_idxs)!=1:
+        print(f"块 {name} 命中 {len(hit_idxs)} 个，判据需更新"); sys.exit(1)
+    b_idx=hit_idxs[0]
+    if b_idx in claimed:
+        print(f"块 #{b_idx} 同时被 {claimed[b_idx]} 与 {name} 认领"); sys.exit(1)
+    claimed[b_idx]=name
     if how!="exec": continue
     ext="py" if name=="alias-parse" else "sh"
-    open(f"{work}/{name.replace('/','_')}.{ext}","w").write(hit[0])
+    open(f"{work}/{name.replace('/','_')}.{ext}","w").write(blocks[b_idx][1])
+if len(claimed)!=len(blocks):
+    print(f"块计数不一致: claimed={len(claimed)} blocks={len(blocks)}"); sys.exit(1)
 print(f"块清单：共 {len(blocks)} 个，执行 {sum(1 for _,_,h in MANIFEST if h=='exec')} 类，其余已登记豁免")
 PY
-python3 "$WORK/check-block-manifest.py" "$DOC" "$WORK"
+EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$DOC" "$WORK"
 [ $? -eq 0 ] || { echo "块清单校验失败" >&2; exit 1; }
 mkdir -p "$WORK/negative-extract"
 cat > "$WORK/unregistered-block.md" <<'BAD'
@@ -73,7 +85,7 @@ cat > "$WORK/unregistered-block.md" <<'BAD'
 echo "unregistered"
 ```
 BAD
-if python3 "$WORK/check-block-manifest.py" "$WORK/unregistered-block.md" "$WORK/negative-extract" >/dev/null 2>&1; then
+if EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/unregistered-block.md" "$WORK/negative-extract" >/dev/null 2>&1; then
   bad "块清单能报未登记代码块" "坏输入被放行"
 else
   ok "块清单能报未登记代码块"
@@ -83,10 +95,17 @@ cat > "$WORK/unknown-fence.md" <<'BAD'
 echo "unknown language tag"
 ```
 BAD
-if python3 "$WORK/check-block-manifest.py" "$WORK/unknown-fence.md" "$WORK/negative-extract" >/dev/null 2>&1; then
+if EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/unknown-fence.md" "$WORK/negative-extract" >/dev/null 2>&1; then
   bad "块清单能报未知 fence 标签" "未知标签被忽略"
 else
   ok "块清单能报未知 fence 标签"
+fi
+empty_inv_out=$(EXPECTED_MANIFEST_IDS="" python3 "$WORK/check-block-manifest.py" "$DOC" "$WORK/negative-extract" 2>&1)
+empty_inv_rc=$?
+if [ "$empty_inv_rc" -eq 1 ] && grep -qF "MANIFEST 登记集缺失或与独立基线不一致" <<<"$empty_inv_out"; then
+  ok "块清单缺少独立基线时必须失败"
+else
+  bad "块清单缺少独立基线时必须失败" "rc=$empty_inv_rc out=$empty_inv_out"
 fi
 python3 - "$DOC" "$WORK/missing-exempt.md" <<'PY'
 import re, sys
@@ -97,17 +116,43 @@ assert n == 1, f"expected 1 totA block, got {n}"
 open(dst, "w", encoding="utf-8").write(stripped)
 PY
 mkdir -p "$WORK/positive-extract"
-if python3 "$WORK/check-block-manifest.py" "$DOC" "$WORK/positive-extract" >/dev/null 2>&1; then
+if EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$DOC" "$WORK/positive-extract" >/dev/null 2>&1; then
   ok "块清单正例抽取目录对照通过"
 else
   bad "块清单正例抽取目录对照通过" "正例失败"
 fi
-miss_out=$(python3 "$WORK/check-block-manifest.py" "$WORK/missing-exempt.md" "$WORK/negative-extract" 2>&1)
+miss_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/missing-exempt.md" "$WORK/negative-extract" 2>&1)
 miss_rc=$?
 if [ "$miss_rc" -eq 1 ] && grep -qF "块 col-attrib 命中 0 个" <<<"$miss_out"; then
   ok "块清单能报缺失的已登记豁免块"
 else
   bad "块清单能报缺失的已登记豁免块" "rc=$miss_rc out=$miss_out"
+fi
+python3 - "$DOC" "$WORK/check-block-manifest.py" "$WORK/codeleted-doc.md" "$WORK/codeleted-checker.py" <<'PY'
+import re, sys
+doc_src, chk_src, doc_dst, chk_dst = sys.argv[1:5]
+doc_text = open(doc_src, encoding="utf-8").read()
+n1 = 0
+def _drop_pdf_probe(m):
+    global n1
+    if m.group(1).strip() == "bash" and "pdftotext" in m.group(2):
+        n1 += 1
+        return ""
+    return m.group(0)
+stripped_doc = re.sub(r'^```([^\n]*)\n(.*?)^```[ \t]*\n', _drop_pdf_probe, doc_text, flags=re.S | re.M)
+assert n1 == 1, f"expected 1 pdf-probe block, got {n1}"
+open(doc_dst, "w", encoding="utf-8").write(stripped_doc)
+chk_text = open(chk_src, encoding="utf-8").read()
+stripped_chk, n2 = re.subn(r'^\s*\("pdf-probe",.*?\),\n', '', chk_text, count=1, flags=re.M)
+assert n2 == 1, f"expected 1 pdf-probe manifest row, got {n2}"
+open(chk_dst, "w", encoding="utf-8").write(stripped_chk)
+PY
+codel_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/codeleted-checker.py" "$WORK/codeleted-doc.md" "$WORK/negative-extract" 2>&1)
+codel_rc=$?
+if [ "$codel_rc" -eq 1 ] && grep -qF "MANIFEST 登记集缺失或与独立基线不一致" <<<"$codel_out"; then
+  ok "块清单能报代码块与登记项同时被删"
+else
+  bad "块清单能报代码块与登记项同时被删" "rc=$codel_rc out=$codel_out"
 fi
 cp "$WORK/fetch_accept.sh" "$WORK/fetch.sh" 2>/dev/null || { echo "抽取 fetch 块失败" >&2; exit 1; }
 cp "$WORK/alias-parse.py" "$WORK/parse.py" 2>/dev/null || { echo "抽取 ALIAS 块失败" >&2; exit 1; }
@@ -230,7 +275,27 @@ check "有效符号链接目标未被动" "$(cat "$WORK/ext-target.json")" '{"ex
 ln -s "$WORK/no-such-target.json" "$WORK/run/dangling-link.json"
 check "目标是悬空符号链接返回 2" "$(FETCH_LOG="$WORK/dangling-link.log" run_fetch "$WORK/run/dangling-link.json" 'https://x/data')" 2
 check "悬空符号链接未创建目标" "$([ -e "$WORK/no-such-target.json" ] && echo created || echo absent)" absent
-check "无 .part 残留"         "$(find "$WORK/run" -name '*.part.*' | wc -l | tr -d ' ')" 0
+mkdir -p "$WORK/ext-parent-dir"
+printf '{"cached_outside":true}\n' > "$WORK/ext-parent-dir/cached.json"
+ln -s "$WORK/ext-parent-dir" "$WORK/run/parent-link"
+check "中间父目录符号链接(既有文件)返回 2" "$(FETCH_LOG="$WORK/parent-link-cached.log" run_fetch "$WORK/run/parent-link/cached.json" 'https://x/data')" 2
+check "中间父目录符号链接(新文件)返回 2" "$(FETCH_LOG="$WORK/parent-link-new.log" run_fetch "$WORK/run/parent-link/new.json" 'https://x/data')" 2
+check "中间父目录符号链接未向外部目录写文件" "$([ -e "$WORK/ext-parent-dir/new.json" ] && echo created || echo untouched)" untouched
+mkdir -p "$WORK/run/a" "$WORK/run/real_sub/sub"
+ln -s "$WORK/run/real_sub" "$WORK/run/a/in_link"
+check "OUT 内深层目录符号链接返回 2" "$(FETCH_LOG="$WORK/in-link.log" run_fetch "$WORK/run/a/in_link/sub/f.json" 'https://x/data')" 2
+check "OUT 内深层目录符号链接未写文件" "$([ -e "$WORK/run/real_sub/sub/f.json" ] && echo created || echo untouched)" untouched
+mkdir -p "$WORK/ext-outer/nested"
+ln -s "$WORK/ext-outer/nested" "$WORK/run/deep-link"
+check "link/.. 跨越符号链接返回 2" "$(FETCH_LOG="$WORK/link-dotdot.log" run_fetch "$WORK/run/deep-link/../escape.json" 'https://x/data')" 2
+check "link/.. 未向外部父目录写文件" "$([ -e "$WORK/ext-outer/escape.json" ] && echo created || echo untouched)" untouched
+nl_sib="$WORK/run"$'\n'
+mkdir -p "$nl_sib"
+check "含换行符的目标路径返回 2" "$(FETCH_LOG="$WORK/nl-path.log" run_fetch "$nl_sib/evil.json" 'https://x/data')" 2
+check "含换行符兄弟目录未写文件" "$([ -e "$nl_sib/evil.json" ] && echo created || echo untouched)" untouched
+check "越出 OUT 的路径返回 2" "$(FETCH_LOG="$WORK/outside-out.log" run_fetch "$WORK/outside.json" 'https://x/data')" 2
+check "越出 OUT 的路径未写文件" "$([ -e "$WORK/outside.json" ] && echo created || echo absent)" absent
+check "无 .part 残留"         "$(find "$WORK/run" "$WORK/ext-parent-dir" -name '*.part.*' | wc -l | tr -d ' ')" 0
 
 run_fetch_smallcap() {  # 把 MAX_BYTES 压到很小，用来触发体积上限分支
   local log=${FETCH_LOG:-/dev/null}

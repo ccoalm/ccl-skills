@@ -43,50 +43,15 @@ _TABLE_ROW = re.compile(r"^\s*\|")
 # CommonMark §4.5 fenced code block opener (0..3 cols relative to container; 3+ ` or ~).
 _FENCE_OPEN = re.compile(r"^([ \t]*)(`{3,}|~{3,})([^\r\n]*)$")
 
-_SCRUB_GIT_ENV_EXACT = frozenset({
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_CEILING_DIRECTORIES",
-    "GIT_COMMON_DIR",
-    "GIT_CONFIG",
-    "GIT_CONFIG_COUNT",
-    "GIT_CONFIG_GLOBAL",
-    "GIT_CONFIG_NOSYSTEM",
-    "GIT_CONFIG_PARAMETERS",
-    "GIT_CONFIG_SYSTEM",
-    "GIT_DIFF_OPTS",
-    "GIT_DIR",
-    "GIT_DISCOVERY_ACROSS_FILESYSTEM",
-    "GIT_EXEC_PATH",
-    "GIT_EXTERNAL_DIFF",
-    "GIT_GLOB_PATHSPECS",
-    "GIT_GRAFT_FILE",
-    "GIT_ICASE_PATHSPECS",
-    "GIT_IMPLICIT_WORK_TREE",
-    "GIT_INDEX_FILE",
-    "GIT_INTERNAL_SUPER_PREFIX",
-    "GIT_LITERAL_PATHSPECS",
-    "GIT_NAMESPACE",
-    "GIT_NOGLOB_PATHSPECS",
-    "GIT_NO_REPLACE_OBJECTS",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_PAGER",
-    "GIT_PREFIX",
-    "GIT_QUARANTINE_PATH",
-    "GIT_REPLACE_REF_BASE",
-    "GIT_SHALLOW_FILE",
-    "GIT_SUPER_PREFIX",
-    "GIT_TEMPLATE_DIR",
-    "GIT_WORK_TREE",
-})
-
-
 def _git_clean_env() -> dict[str, str]:
-    return {
-        k: v
-        for k, v in os.environ.items()
-        if k not in _SCRUB_GIT_ENV_EXACT
-        and not k.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))
-    }
+    clean = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    clean["GIT_NO_LAZY_FETCH"] = "1"
+    return clean
+
+
+def _is_blank_line(raw: str) -> bool:
+    """CommonMark §2.1 blank line: only ASCII spaces (0x20) and tabs (0x09)."""
+    return not raw.strip(" \t\r")
 
 
 def normalize(text: str) -> str:
@@ -188,6 +153,7 @@ def parse(source: str, *, min_chars: int = 25) -> list[Obligation]:
     list_stack: list[tuple[int, int, str]] = []  # (marker_indent, content_indent, content_key)
     paragraph: list[str] = []
     fence_closer: re.Pattern[str] | None = None
+    fence_container_indent = 0
     fence_max_indent = 3
     # A list item may wrap across several lines. Its continuation lines belong to
     # the item, not to a following paragraph — folding them in is what makes a
@@ -217,10 +183,15 @@ def parse(source: str, *, min_chars: int = 25) -> list[Obligation]:
 
     for raw in source.split("\n"):
         if fence_closer is not None:
-            m_close = fence_closer.match(raw)
-            if m_close and len(m_close.group(1).expandtabs(4)) <= fence_max_indent:
-                fence_closer = None
-            continue
+            if not _is_blank_line(raw):
+                raw_lead_cols = len(raw[: len(raw) - len(raw.lstrip(" \t"))].expandtabs(4))
+                if raw_lead_cols < fence_container_indent:
+                    fence_closer = None
+            if fence_closer is not None:
+                m_close = fence_closer.match(raw)
+                if m_close and len(m_close.group(1).expandtabs(4)) <= fence_max_indent:
+                    fence_closer = None
+                continue
         fence_open = _FENCE_OPEN.match(raw)
         if fence_open and not (fence_open.group(2)[0] == "`" and "`" in fence_open.group(3)):
             lead_cols = len(fence_open.group(1).expandtabs(4))
@@ -239,11 +210,12 @@ def parse(source: str, *, min_chars: int = 25) -> list[Obligation]:
                     list_stack.pop()
                 ch = fence_open.group(2)[0]
                 min_len = len(fence_open.group(2))
+                fence_container_indent = container_indent
                 fence_max_indent = container_indent + 3
                 fence_closer = re.compile(rf"^([ \t]*){re.escape(ch)}{{{min_len},}}[ \t]*\r?$")
                 continue
 
-        if not raw.strip():
+        if _is_blank_line(raw):
             flush_item()
             flush_paragraph()
             # A blank line ends a paragraph but not the enclosing list context;

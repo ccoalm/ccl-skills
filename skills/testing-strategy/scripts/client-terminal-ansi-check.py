@@ -24,9 +24,12 @@ non-symlinked source tree outside the allowlist", NOT full conformance. Put your
 terminal lib on the allowlist so its legitimate escape definitions are exempt.
 
 Allowlist: `--allow=<path-segment>` exempts files under a matching path COMPONENT (segment-anchored,
-not a raw substring — `--allow=render` exempts `render/…` but not `surrender.ts`); a multi-segment
-value (`src/render`) matches a contiguous run of segments. Use it for the one module that owns escape
-emission, e.g. `--allow=ansi --allow=render`.
+not a raw substring — `--allow=render` exempts `render/…` but not `surrender.ts`) relative to the
+enclosing project root (`.git`, `go.mod`, `package.json`, `pyproject.toml`, `Cargo.toml`, `pubspec.yaml`),
+or relative to `cwd` when inside `cwd` with no project marker (outside both `cwd` and any project marker,
+resolved segments apply uniformly across directory and file scans unless a symlink escapes its lexical
+anchor); a multi-segment value (`src/render`) matches a contiguous run of segments. Use `--allow=ansi
+--allow=render` for the module that owns escape emission.
 
 Comments are NOT excluded (comment syntax varies across the many languages this scans — `//`, `#`,
 `--`, `/* */`), so a hardcoded escape inside a comment is still flagged; move illustrative escapes
@@ -60,6 +63,9 @@ ESCAPE_RE = re.compile(
 )
 
 
+PROJECT_MARKERS = (".git", "go.mod", "package.json", "pyproject.toml", "Cargo.toml", "pubspec.yaml")
+
+
 def _iter_src(paths, onerror=None):
     for p in paths:
         if os.path.isdir(p):
@@ -71,22 +77,75 @@ def _iter_src(paths, onerror=None):
             yield p
 
 
-def _path_segments(path):
-    return [s for s in re.split(r"[\\/]+", os.path.realpath(path)) if s and s != "."]
+def _find_project_root(start_dir):
+    cur = os.path.realpath(start_dir)
+    while True:
+        if any(os.path.exists(os.path.join(cur, m)) for m in PROJECT_MARKERS):
+            return cur
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            return None
+        cur = parent
+
+
+def _is_within(child_real, root_real):
+    try:
+        rel = os.path.relpath(child_real, root_real)
+    except ValueError:
+        return False
+    return rel == "." or (rel != ".." and not rel.startswith(".." + os.sep))
+
+
+def _lexical_anchor_dir(arg):
+    cur = os.getcwd() if not os.path.isabs(arg) else os.sep
+    for part in re.split(r"[\\/]+", arg):
+        if not part or part == ".":
+            continue
+        if part == "..":
+            if os.path.islink(cur):
+                break
+            cur = os.path.dirname(cur)
+            continue
+        nxt = os.path.join(cur, part)
+        if os.path.islink(nxt) or not os.path.isdir(nxt):
+            break
+        cur = nxt
+    return os.path.realpath(cur)
+
+
+def _scope_root_for_arg(arg, cwd_real):
+    anchor_dir = _lexical_anchor_dir(arg)
+    proj = _find_project_root(anchor_dir)
+    if proj is not None:
+        return proj
+    if _is_within(anchor_dir, cwd_real):
+        return cwd_real
+    if not _is_within(os.path.realpath(arg), anchor_dir):
+        return anchor_dir
+    return os.path.abspath(os.sep)
+
+
+def _rel_segments(path, root_real):
+    real_file = os.path.realpath(path)
+    if not _is_within(real_file, root_real):
+        return None
+    rel = os.path.relpath(real_file, root_real)
+    return [s for s in re.split(r"[\\/]+", rel) if s and s != "."]
 
 
 def _allow_segments(raw):
     return [s for s in re.split(r"[\\/]+", raw) if s and s != "."]
 
 
-def _allowed(path, allow):
-    # Segment-anchored against the resolved filesystem path (`os.path.realpath`): `--allow=render`
-    # matches a real `render/` path component (including `--allow=./render`), NOT the substring
-    # inside `surrender.ts`, NOT a traversed lexical parent (`render/../src/colors.go`), and NOT
-    # a symlink-parent hop (`src/link/../render/colors.go` resolving outside `src/render`).
-    # Allowlist entries containing any raw `..` segment (`--allow=..`, `--allow=render/../src`)
-    # are rejected before normalization so parent segments never collapse into broader prefixes.
-    segs = _path_segments(path)
+def _allowed(path, allow, root_real):
+    # Segment-anchored against the resolved path relative to the canonical project/scan root:
+    # `--allow=render` matches `render/` inside the root, NOT an ancestor directory above the
+    # checkout, NOT `surrender.ts`, NOT `render/../src/colors.go`, and NOT targets resolving
+    # outside `root_real`. Allowlist entries keep raw `..` un-collapsed so `--allow=..` and
+    # `--allow=render/../src` never match normalized relative segments.
+    segs = _rel_segments(path, root_real)
+    if not segs:
+        return False
     for a in allow:
         parts = _allow_segments(a)
         if not parts:
@@ -116,11 +175,13 @@ def main(argv):
     if not paths:
         print("usage: client-terminal-ansi-check.py <src-path> [...] [--allow=<substr>]...", file=sys.stderr)
         return 2
-    files = []
+    cwd_real = os.path.realpath(os.getcwd())
+    scoped_files = []
     for p in paths:
         if not os.path.exists(p):
             print(f"client-ansi: path not found: {p} — inconclusive", file=sys.stderr)
             return 2
+        root_real = _scope_root_for_arg(p, cwd_real)
         if os.path.isdir(p):
             walk_errs = []
             sub = list(_iter_src([p], onerror=walk_errs.append))
@@ -130,21 +191,21 @@ def main(argv):
             if not sub:
                 print(f"client-ansi: no source files under directory: {p} — inconclusive", file=sys.stderr)
                 return 2
-            files.extend(sub)
+            scoped_files.extend((f, root_real) for f in sub)
         elif os.path.isfile(p):
             if os.path.splitext(p)[1] not in SOURCE_EXT:
                 print(f"client-ansi: unsupported file type: {p} — inconclusive", file=sys.stderr)
                 return 2
-            files.append(p)
+            scoped_files.append((p, root_real))
         else:
             print(f"client-ansi: unsupported file type: {p} — inconclusive", file=sys.stderr)
             return 2
-    if not files:
+    if not scoped_files:
         print("client-ansi: no source files in scope — inconclusive", file=sys.stderr)
         return 2
     hits = 0
-    for f in files:
-        if _allowed(f, allow):
+    for f, root_real in scoped_files:
+        if _allowed(f, allow, root_real):
             continue
         res, err = _check_file(f)
         if err is not None:

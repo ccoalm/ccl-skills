@@ -163,9 +163,9 @@ Do not claim systematic UI/UX extraction unless all are true:
 - The validation pass reopened relevant Figma/design/code/runtime artifacts after the method or target skill changed. A pressure test that reads only the skill files is a static review and cannot prove the method changes future extraction behavior.
 - Source register rows for required Figma/code/state families are closed, explicitly excluded, unavailable, or downscoped.
 - Observation -> judgment -> rule -> acceptance is recorded for each landed rule.
-- Judgment-delta matrix covers visual direction/tokens, aesthetics, interaction logic, behavioral logic, and psychology.
+- Judgment-delta matrix covers visual direction/tokens, aesthetics, interaction logic, behavioral logic, and psychology (each layer marked `new`, `confirmed`, `narrowed`, `routed`, or `no new evidence` with source observations, and visual direction/tokens rows carrying token provenance plus the design/dev/test owner decision; if absent or lacking those fields, report only as source inventory or execution hardening, not design-judgment extraction).
 - Target-output map matches the actual diff across design, web/app, testing, product workflow, and extraction workflow owners.
-- Minimum pressure set is passed or explicitly marked not applicable.
+- Minimum pressure set is passed or mark irrelevant cases explicitly instead of silently skipping them.
 - Executable guidance has no source-domain names, internal project names, real business copy, source IDs, or one-off implementation details.
 
 ## Pressure-Test Protocol

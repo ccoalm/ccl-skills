@@ -11,9 +11,15 @@ tmp="$(mktemp -d "${TMPDIR:-/tmp}/lbast.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 pass=0 fail=0
+cp "$script" "$tmp/checker_copy.py"
+if python3 -B -W error -m py_compile "$tmp/checker_copy.py" 2>"$tmp/pycompile.err"; then
+  pass=$((pass+1)); echo "ok   - py_compile under -W error has zero SyntaxWarning"
+else
+  fail=$((fail+1)); echo "FAIL - py_compile under -W error: $(cat "$tmp/pycompile.err")"
+fi
 assert_hit() { # <desc> <expect-substr> <path...>
   local desc="$1" want="$2"; shift 2
-  set +e; local out rc; out="$(python3 "$script" "$@" 2>/dev/null)"; rc=$?; set -e
+  set +e; local out rc; out="$(python3 -B -W error "$script" "$@" 2>/dev/null)"; rc=$?; set -e
   # Here-string, not a pipe: under pipefail `grep -q` exits on the first match and the
   # writer can take SIGPIPE, turning a real match into a false failure.
   if [ "$rc" = 1 ] && grep -qF "$want" <<<"$out"; then
@@ -24,7 +30,7 @@ assert_hit() { # <desc> <expect-substr> <path...>
 }
 assert_exit() { # <desc> <expected-exit> <path...>
   local desc="$1" want="$2"; shift 2
-  set +e; python3 "$script" "$@" >/dev/null 2>&1; local rc=$?; set -e
+  set +e; python3 -B -W error "$script" "$@" >/dev/null 2>&1; local rc=$?; set -e
   if [ "$rc" = "$want" ]; then pass=$((pass+1)); echo "ok   - $desc"; else fail=$((fail+1)); echo "FAIL - $desc (want exit $want, got $rc)"; fi
 }
 
@@ -70,6 +76,10 @@ cat > "$tmp/t/ternary.py" <<'EOF'
 def t1(flag): return {"ok": True} if flag else {"ok": False}
 def t2(flag): return {"success": False} if flag else {"data": 1}
 def t3(flag): return JSONResponse({"ok": False} if flag else {"data": 1})
+def t4(flag): return JSONResponse({"data": 1} if flag else {"ok": False})
+EOF
+cat > "$tmp/t/wrapped_orelse.py" <<'EOF'
+def w_else(flag): return JSONResponse({"data": 1} if flag else {"ok": False})
 EOF
 printf 'def broken(:\n' > "$tmp/t/syntax.py"
 echo "not python" > "$tmp/empty/readme.md"
@@ -80,7 +90,7 @@ assert_hit  "error tuple (data,err)/(None,msg)"               "error-tuple"     
 assert_hit  "constructor-wrapped fake dict (direct, by label)" "fake dict (constructor-wrapped)" "$tmp/t/wrapped.py"
 assert_hit  "(body, status) tuple boundary response"         "(body, status) tuple"  "$tmp/t/bypasses.py"
 # exact-count guard: bypasses.py has 11 fake-return lines (a,b,c,d,e,f,g,i,j,o,p); each → 1 finding.
-got=$(python3 "$script" "$tmp/t/bypasses.py" 2>/dev/null | grep -c "lang-basics-ast smell:" || true)
+got=$(python3 -B "$script" "$tmp/t/bypasses.py" 2>/dev/null | grep -c "lang-basics-ast smell:" || true)
 if [ "$got" = 11 ]; then pass=$((pass+1)); echo "ok   - bypasses.py finding count == 11"; else fail=$((fail+1)); echo "FAIL - bypasses.py count: want 11 got $got"; fi
 assert_exit "clean returns -> no finding (0)"            0    "$tmp/t/clean.py"
 assert_exit "syntax error -> inconclusive (2)"          2    "$tmp/t/syntax.py"
@@ -90,9 +100,10 @@ assert_exit "dir without py -> setup (2)"               2    "$tmp/empty"
 assert_exit "multi-scope w/ one empty dir -> (2)"       2    "$tmp/t" "$tmp/empty"
 assert_hit  "IfExp ternary fake-success dict caught"    "dict success/ok=False" "$tmp/t/ternary.py"
 assert_hit  "constructor-wrapped IfExp ternary fake dict caught" "fake dict (constructor-wrapped)" "$tmp/t/ternary.py"
-tgot=$(python3 "$script" "$tmp/t/ternary.py" 2>/dev/null | grep -c "lang-basics-ast smell:" || true)
-if [ "$tgot" = 3 ]; then pass=$((pass+1)); echo "ok   - ternary.py finding count == 3"; else fail=$((fail+1)); echo "FAIL - ternary.py count: want 3 got $tgot"; fi
-walk_probe="$(python3 - "$script" "$tmp/empty" <<'PY'
+assert_hit  "constructor-wrapped IfExp false-branch fake dict caught" "fake dict (constructor-wrapped)" "$tmp/t/wrapped_orelse.py"
+tgot=$(python3 -B "$script" "$tmp/t/ternary.py" 2>/dev/null | grep -c "lang-basics-ast smell:" || true)
+if [ "$tgot" = 4 ]; then pass=$((pass+1)); echo "ok   - ternary.py finding count == 4"; else fail=$((fail+1)); echo "FAIL - ternary.py count: want 4 got $tgot"; fi
+walk_probe="$(python3 -B - "$tmp/checker_copy.py" "$tmp/empty" <<'PY'
 import contextlib, io, importlib.util, os, sys
 spec = importlib.util.spec_from_file_location("lbast", sys.argv[1])
 mod = importlib.util.module_from_spec(spec)

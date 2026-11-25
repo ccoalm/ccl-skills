@@ -223,6 +223,42 @@ def test_parse_junit_malformed_xml_returns_empty(tmp_path, capsys):
     assert out_enc == {"linked": {}, "untracked": []}
     assert "bad_enc.xml" in capsys.readouterr().err
 
+    val_enc = tmp_path / "val_enc.xml"
+    val_enc.write_text('<testsuite/>')
+    orig_et_parse = g.ET.parse
+    try:
+        g.ET.parse = lambda _p: (_ for _ in ()).throw(ValueError("multi-byte encodings are not supported"))
+        out_val = g.parse_junit(str(val_enc), {})
+        assert out_val == {"linked": {}, "untracked": []}
+        assert "val_enc.xml" in capsys.readouterr().err
+        r_val = g.collect_results([{"name": "val-enc", "results_file": str(val_enc)}])
+        assert r_val["parsed_suites"] == 0
+        assert r_val["missing_files"] == [str(val_enc)]
+    finally:
+        g.ET.parse = orig_et_parse
+
+    ns_xml = tmp_path / "namespaced_junit.xml"
+    ns_xml.write_text(
+        '<?xml version="1.0"?>'
+        '<testsuite xmlns="urn:junit:schema" name="ns">'
+        '<testcase classname="m" name="t_fail"><failure>boom</failure></testcase>'
+        '</testsuite>'
+    )
+    r_ns = g.collect_results([{"name": "ns-suite", "results_file": str(ns_xml)}])
+    assert r_ns["parsed_suites"] == 0
+    assert r_ns["missing_files"] == [str(ns_xml)]
+
+    nested_ns_xml = tmp_path / "nested_ns_junit.xml"
+    nested_ns_xml.write_text(
+        '<?xml version="1.0"?><testsuites>'
+        '<testsuite xmlns="urn:junit:schema" name="ns">'
+        '<testcase classname="m" name="t_fail"><failure>boom</failure></testcase>'
+        '</testsuite></testsuites>'
+    )
+    r_nested_ns = g.collect_results([{"name": "nested-ns", "results_file": str(nested_ns_xml)}])
+    assert r_nested_ns["parsed_suites"] == 0
+    assert r_nested_ns["missing_files"] == [str(nested_ns_xml)]
+
     cov_xml = tmp_path / "cov_as_junit.xml"
     cov_xml.write_text('<?xml version="1.0"?><coverage line-rate="0.9"/>')
     r_cov = g.collect_results([{"name": "cov-mistake", "results_file": str(cov_xml)}])
@@ -270,15 +306,164 @@ def test_collect_results_corrupt_junit_xml_records_infra_missing_and_preserves_b
     env = dict(os.environ)
     env["TC_SIDECAR"] = str(sidecar)
     env["TC_LAST_RUN"] = str(lr_path)
+    env["GIT_TRACE"] = str(lr_path)
+    env["GIT_TRACE2"] = str(lr_path)
     proc = g.subprocess.run(
-        [sys.executable, str(Path(g.__file__).resolve()), "--config", str(cfg_path),
-         "--author", "tester", "--version", "v0", "--fail-on", "any"],
+        [sys.executable, str(Path(g.__file__).resolve()), "--config", str(cfg_path)],
         capture_output=True, text=True, env=env,
     )
     assert proc.returncode == 1
     assert "corrupt.xml" in proc.stderr
     assert "🚨 基础设施失败" in proc.stdout
     assert lr_path.read_bytes() == baseline_bytes
+
+    ns_only = tmp_path / "ns_only.xml"
+    ns_only.write_text(
+        '<?xml version="1.0"?><testsuite xmlns="urn:junit" name="ns">'
+        '<testcase classname="m" name="t_unit"><failure>boom</failure></testcase>'
+        '</testsuite>'
+    )
+    ns_cfg = tmp_path / "ns-config.json"
+    ns_cfg.write_text(json.dumps({
+        "base_token": "", "table_id": "", "report_doc_url": "",
+        "test_suites": [{"name": "ns", "results_file": str(ns_only)}],
+    }))
+    proc_ns = g.subprocess.run(
+        [sys.executable, str(Path(g.__file__).resolve()), "--config", str(ns_cfg)],
+        capture_output=True, text=True, env=env,
+    )
+    assert proc_ns.returncode == 1
+    assert "🚨 基础设施失败" in proc_ns.stdout
+    assert lr_path.read_bytes() == baseline_bytes
+
+
+def test_full_bitable_mode_mixed_corrupt_xml_default_fail_on_preserves_baseline(tmp_path):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    doc_captured = tmp_path / "published-doc.md"
+    lark_stub = bin_dir / "lark-cli"
+    lark_stub.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json, pathlib, sys\n"
+        "args = sys.argv[1:]\n"
+        "if '+record-list' in args:\n"
+        "    print(json.dumps({'data': {'items': [{'record_id': 'rec1', 'fields': {"
+        "'用例ID': 'TC-UNIT-001', '模块': '核心', '功能点': '单测', '优先级': 'P0', "
+        "'状态': '通过', '测试层级': 'unit', '测试类型': 'api-automation', '信息流转': '[init] ok'}}], 'has_more': False}}))\n"
+        "elif '+update' in args:\n"
+        "    md = args[args.index('--markdown') + 1]\n"
+        f"    pathlib.Path({str(doc_captured)!r}).write_text(md, encoding='utf-8')\n"
+        "    print('{}')\n"
+        "else:\n"
+        "    print('{}')\n"
+    )
+    lark_stub.chmod(0o755)
+    sidecar = tmp_path / "tc-map.jsonl"
+    sidecar.write_text('{"test": "t_unit", "tc_ids": ["TC-UNIT-001"]}\n')
+    lr_path = tmp_path / "lr-full.json"
+    valid = tmp_path / "unit.xml"
+    valid.write_text('<?xml version="1.0"?><testsuite name="unit"><testcase classname="m" name="t_unit"/></testsuite>')
+    api_xml = tmp_path / "api-full.xml"
+    api_xml.write_text('<?xml version="1.0"?><testsuite name="api"><testcase classname="m" name="t_api"/></testsuite>')
+    cfg_path = tmp_path / "full-config.json"
+    cfg_path.write_text(json.dumps({
+        "base_token": "BAS01234567890",
+        "table_id": "tbl123456",
+        "report_doc_url": "https://xxx.feishu.cn/docx/DOC123456",
+        "test_suites": [
+            {"name": "unit", "layer": "unit", "results_file": str(valid)},
+            {"name": "api", "layer": "integration", "results_file": str(api_xml)},
+        ],
+    }))
+    env = dict(os.environ)
+    env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
+    env["TC_SIDECAR"] = str(sidecar)
+    env["TC_LAST_RUN"] = str(lr_path)
+    env["GIT_TRACE"] = str(lr_path)
+    ok_proc = g.subprocess.run(
+        [sys.executable, str(Path(g.__file__).resolve()), "--config", str(cfg_path)],
+        capture_output=True, text=True, env=env,
+    )
+    assert ok_proc.returncode == 0
+    assert json.loads(lr_path.read_text(encoding="utf-8"))["linked"] == {"TC-UNIT-001": "通过"}
+
+    baseline_bytes = json.dumps({
+        "schema_version": g.LAST_RUN_SCHEMA_VERSION,
+        "timestamp": "x", "linked": {"TC-UNIT-001": "通过"},
+    }).encode("utf-8")
+    lr_path.write_bytes(baseline_bytes)
+    api_xml.write_text('<?xml version="1.0"?><testsuite name="api"><testcase')
+    proc_live = g.subprocess.run(
+        [sys.executable, str(Path(g.__file__).resolve()), "--config", str(cfg_path)],
+        capture_output=True, text=True, env=env,
+    )
+    assert proc_live.returncode == 1
+    published = doc_captured.read_text(encoding="utf-8")
+    assert "🚨 基础设施失败" in published
+    assert "❌ 不建议发布" in published
+    assert lr_path.read_bytes() == baseline_bytes
+
+    proc_dry = g.subprocess.run(
+        [sys.executable, str(Path(g.__file__).resolve()), "--config", str(cfg_path), "--dry-run"],
+        capture_output=True, text=True, env=env,
+    )
+    assert proc_dry.returncode == 1
+    assert "🚨 基础设施失败" in proc_dry.stdout
+    assert "❌ 不建议发布" in proc_dry.stdout
+    assert lr_path.read_bytes() == baseline_bytes
+
+
+def test_update_lifecycle_rmw_recipes_reject_direct_info_log_and_missing_ids(monkeypatch):
+    doc_path = Path(g.__file__).resolve().parent / "update-lifecycle.md"
+    blocks = g.re.findall(r"```python\n(.*?)^```", doc_path.read_text(encoding="utf-8"), flags=g.re.S | g.re.M)
+    assert len(blocks) == 4
+    ns: dict[str, object] = {}
+    exec(compile(blocks[0], "update-lifecycle-b0", "exec"), ns)
+    exec(compile(blocks[1], "update-lifecycle-b1", "exec"), ns)
+    calls: list[list[str]] = []
+
+    class FakeProc:
+        def __init__(self, returncode: int, stdout: str = "", stderr: str = ""):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    def fake_run(cmd, **_kw):
+        calls.append(list(cmd))
+        if "+record-list" in cmd:
+            return FakeProc(0, json.dumps({"data": {"items": [
+                {"record_id": "rec_1", "fields": {"用例ID": "TC-SY-001", "信息流转": "[init] a"}},
+                {"record_id": "rec_3", "fields": {"用例ID": "TC-SY-003", "信息流转": "[init] b"}},
+                {"record_id": "rec_7", "fields": {"用例ID": "TC-SY-007", "信息流转": "[init] c"}},
+            ]}}))
+        return FakeProc(0, "{}")
+
+    monkeypatch.setattr(ns["subprocess"], "run", fake_run)
+    ns["BASE_TOKEN"] = "bas_tok"
+    ns["TABLE_ID"] = "tbl_id"
+    batch_tail = blocks[2].split("\n# Precondition:", 1)[1]
+    ns["updates"] = [
+        {"用例ID": "TC-SY-001", "状态": "通过", "信息流转追加": "[张三 2026-05-28] 正常追加"},
+        {"用例ID": "TC-SY-003", "状态": "失败", "信息流转": "raw overwrite"},
+    ]
+    with pytest.raises(ValueError, match="信息流转追加"):
+        exec(compile("# Precondition:" + batch_tail, "update-lifecycle-b2-direct", "exec"), ns)
+    assert [c for c in calls if "+record-upsert" in c] == []
+
+    calls.clear()
+    ns["updates"] = [
+        {"用例ID": "TC-SY-001", "状态": "通过", "信息流转追加": "[张三 2026-05-28] 正常追加"},
+        {"用例ID": "TC-SY-999", "状态": "失败"},
+    ]
+    with pytest.raises(LookupError, match="TC-SY-999"):
+        exec(compile("# Precondition:" + batch_tail, "update-lifecycle-b2-missing", "exec"), ns)
+    assert [c for c in calls if "+record-upsert" in c] == []
+
+    calls.clear()
+    exec(compile(blocks[2], "update-lifecycle-b2-full", "exec"), ns)
+    upsert_payloads = [json.loads(c[c.index("--json") + 1]) for c in calls if "+record-upsert" in c]
+    assert len(upsert_payloads) == 3
+    assert "[init] a\n[张三 2026-05-28] 测试通过" == upsert_payloads[0]["信息流转"]
 
 
 def test_default_author_and_version_scrub_poisoned_git_env(tmp_path, monkeypatch):
@@ -299,10 +484,12 @@ def test_default_author_and_version_scrub_poisoned_git_env(tmp_path, monkeypatch
     monkeypatch.chdir(repo)
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_NO_LAZY_FETCH", "0")
     monkeypatch.setenv("GIT_DIR", str(tmp_path / "nonexistent.git"))
     monkeypatch.setenv("GIT_WORK_TREE", str(tmp_path / "nonexistent-wt"))
     monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "nonexistent.idx"))
     monkeypatch.setenv("GIT_CONFIG_PARAMETERS", "'user.name=Poisoned Author'")
+    assert g._git_clean_env().get("GIT_NO_LAZY_FETCH") == "1"
     assert g._default_author() == "Repo Author"
     assert g._default_version() == "v9.9.9"
 
