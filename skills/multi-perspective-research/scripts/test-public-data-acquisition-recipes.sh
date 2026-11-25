@@ -29,142 +29,48 @@ cat > "$WORK/check-block-manifest.py" <<'PY'
 import os,re,sys
 doc,work=sys.argv[1],sys.argv[2]
 expected_ids=[s for s in os.environ.get("EXPECTED_MANIFEST_IDS","").split(",") if s]
-t=open(doc,encoding='utf-8').read()
-# 枚举所有 CommonMark fence（跨行追踪引用块 >、列表项容器与段落中断规则、缩进回退闭合、0..3 空格缩进、3+ 反引号或波浪线）。
+# utf-8-sig：CommonMark 渲染器会跳过开头的 BOM，保留它会让首行 fence 逃过开头判断。
+t=open(doc,encoding='utf-8-sig').read()
+# 承载文档格式收窄，而不是解析 CommonMark 容器：可运行块只能是第 0 列开头的根级 fence。
+# 其它任何位置的类 fence 行（引用块、列表、缩进、fence 体内的嵌套开头）或未闭合 fence 都让检查失败。
+# 每个真实 fence 都有一行开头，它要么进入块清单，要么触发失败，所以不存在静默漏登记；
+# 代价是作者不能在这份文档里嵌套或缩进 fence（当前文档没有）。
 blocks=[]
-_atxhdr=re.compile(r'^[ \t]{0,3}#{1,6}(?:[ \t]+.*|[ \t]*)$')
-_setext=re.compile(r'^[ \t]{0,3}(?:=+|-+)[ \t]*$')
-_tbreak=re.compile(r'^[ \t]{0,3}(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})$')
-_litem=re.compile(r'^([ \t]{0,3})([-*+]|\d{1,9}[.)])(?:([ \t]+)(.*))?$')
-_fopen=re.compile(r'^([ \t]*)(\`{3,}|~{3,})([^\r\n]*)$')
-def _adv_cols(s, target, start_col=0):
-    col=start_col; i=0; n=len(s)
-    while i<n and col<target:
-        if s[i]==' ':
-            col+=1; i+=1
-        elif s[i]=='\t':
-            nc=col+(4-(col%4))
-            if nc>target:
-                return ' '*(nc-target)+s[i+1:]
-            col=nc; i+=1
+layout_errors=[]
+_prefix=re.compile(r'^(?:[ \t]*(?:>|[-*+](?=[ \t]|$)|\d{1,9}[.)](?=[ \t]|$)))*[ \t]*')
+_run=re.compile(r'(`{3,}|~{3,})(.*)$')
+def _opener(s):
+    m=_run.match(s)
+    # 反引号 fence 的 info 不能含反引号，否则是行内代码（CommonMark §4.5）。
+    if m and not (m.group(1)[0]=='`' and '`' in m.group(2)):
+        return m
+    return None
+def _fence_like(s):
+    return _opener(s[_prefix.match(s).end():]) is not None
+_open=None
+# 只按 LF 切行：open() 已把 CR/CRLF 归一成 LF，而 str.splitlines() 还会在 U+2028 等字符处断行，
+# CommonMark 不把它们当行尾，会让扫描器与渲染器对行边界的判断分叉。
+for _no,_ln in enumerate(t.split('\n'),1):
+    if _open is not None:
+        _ch,_n,_lang,_buf,_start=_open
+        if re.fullmatch(' {0,3}'+re.escape(_ch)+'{'+str(_n)+',}[ \\t]*',_ln):
+            blocks.append((_lang,''.join(_buf))); _open=None
+        elif _fence_like(_ln):
+            layout_errors.append(f"第 {_no} 行（第 {_start} 行起的 fence 体内）: {_ln[:70]}")
         else:
-            return None
-    return s[i:] if col>=target else None
-def _lead_cols(s, start_col=0):
-    col=start_col
-    for ch in s:
-        if ch==' ': col+=1
-        elif ch=='\t': col+=4-(col%4)
-        else: break
-    return col
-containers=[]
-_fclose=None; _flang=''; _fbuf=[]; _fcdepth=0; _findent=0; _in_para=False
-for _ln in t.splitlines(keepends=True):
-    _stripped=_ln.rstrip('\r\n')
-    _eol=_ln[len(_stripped):]
-    _rem=_stripped; _col=0
-    _matched=0
-    _limit=_fcdepth if _fclose is not None else len(containers)
-    while _matched<_limit:
-        _c=containers[_matched]
-        if _c[0]=='quote':
-            _lc=_lead_cols(_rem, _col)
-            if _lc-_col<=3:
-                _after_sp=_rem.lstrip(' \t')
-                if _after_sp.startswith('>'):
-                    _qrem=_after_sp[1:]
-                    _qcol=_lc+1
-                    if _qrem.startswith(' '):
-                        _qrem=_qrem[1:]; _qcol+=1
-                    elif _qrem.startswith('\t'):
-                        _ts=_qcol+(4-(_qcol%4))
-                        _qrem=' '*(_ts-_qcol-1)+_qrem[1:]; _qcol+=1
-                    _rem=_qrem; _col=_qcol; _matched+=1; continue
-            break
-        else:
-            if not _rem.strip(' \t'):
-                if _c[2]:
-                    break
-                _rem=''; _col+=_c[1]; _matched+=1; continue
-            _next=_adv_cols(_rem, _col+_c[1], _col)
-            if _next is not None:
-                _c[2]=False; _rem=_next; _col+=_c[1]; _matched+=1; continue
-            break
-    if _fclose is not None:
-        if _matched<_fcdepth:
-            blocks.append((_flang,''.join(_fbuf))); _fclose=None; _fbuf=[]
-            del containers[_matched:]; _in_para=False
-        else:
-            _mc=_fclose.match(_rem)
-            if _mc and _lead_cols(_mc.group(1), _col)-_col<=3:
-                blocks.append((_flang,''.join(_fbuf))); _fclose=None; _fbuf=[]
-                continue
-            if _findent>0:
-                _srem=_adv_cols(_rem, _col+_findent, _col)
-                if _srem is None:
-                    _srem=_rem.lstrip(' \t')
-                _fbuf.append(_srem+_eol)
-            else:
-                _fbuf.append(_rem+_eol)
-            continue
-    else:
-        if _matched<len(containers):
-            del containers[_matched:]; _in_para=False
-    _blocked_leaf=False
-    while True:
-        _lc=_lead_cols(_rem, _col)
-        if _lc-_col<=3:
-            _after_sp=_rem.lstrip(' \t')
-            if _after_sp.startswith('>'):
-                _qrem=_after_sp[1:]
-                _qcol=_lc+1
-                if _qrem.startswith(' '):
-                    _qrem=_qrem[1:]; _qcol+=1
-                elif _qrem.startswith('\t'):
-                    _ts=_qcol+(4-(_qcol%4))
-                    _qrem=' '*(_ts-_qcol-1)+_qrem[1:]; _qcol+=1
-                containers.append(['quote']); _in_para=False
-                _rem=_qrem; _col=_qcol
-                continue
-        if (_in_para and _setext.match(_rem)) or _tbreak.match(_rem):
-            _in_para=False; _blocked_leaf=True; break
-        _mi=_litem.match(_rem)
-        if _mi and (_lc-_col<=3):
-            _mtok=_mi.group(2)
-            _mnum=_mtok[:-1] if _mtok[-1] in ('.', ')') else None
-            _mbody=_mi.group(4) if _mi.group(3) is not None else ''
-            if _in_para and (not _mbody.strip(' \t') or (_mnum is not None and int(_mnum)!=1)):
-                break
-            _in_para=False
-            _mcol_end=_lead_cols(_rem[:_mi.start(2)], _col)+len(_mtok)
-            if not _mbody.strip(' \t'):
-                _mbase=(_mcol_end-_col)+1
-                containers.append(['list', _mbase, True])
-                _rem=''; _col+=_mbase
-                break
-            _mbase_abs=_mcol_end+1
-            _fcol_abs=_lead_cols(_rem[_mi.start(3):], _mcol_end)
-            _cind_abs=_mbase_abs if (_fcol_abs-_mbase_abs>3) else _fcol_abs
-            _cind_rel=_cind_abs-_col
-            containers.append(['list', _cind_rel, False])
-            _rem=_adv_cols(_rem[_mi.start(3):], _cind_abs, _mcol_end) or ''
-            _col=_cind_abs
-            continue
-        break
-    _m=_fopen.match(_rem)
-    if _m and _lead_cols(_m.group(1), _col)-_col<=3 and not (_m.group(2)[0]=='`' and '`' in _m.group(3)):
-        _ch=_m.group(2)[0]; _n=len(_m.group(2))
-        _fclose=re.compile(rf'^([ \t]*){re.escape(_ch)}{{{_n},}}[ \t]*$')
-        _flang=_m.group(3).strip(); _fbuf=[]
-        _fcdepth=len(containers); _findent=_lead_cols(_m.group(1), _col)-_col; _in_para=False
-    elif not _rem.strip(' \t') or _blocked_leaf or _atxhdr.match(_rem):
-        _in_para=False
-    elif not _in_para and _lead_cols(_rem, _col)-_col>=4:
-        _in_para=False
-    else:
-        _in_para=True
-if _fclose is not None:
-    blocks.append((_flang,''.join(_fbuf)))
+            _buf.append(_ln+'\n')
+        continue
+    _m=_opener(_ln)
+    if _m:
+        _open=(_m.group(1)[0],len(_m.group(1)),_m.group(2).strip(),[],_no)
+    elif _fence_like(_ln):
+        layout_errors.append(f"第 {_no} 行: {_ln[:70]}")
+if _open is not None:
+    layout_errors.append(f"第 {_open[4]} 行起的 fence 未闭合")
+if layout_errors:
+    print("承载文档格式不合规：可运行块只能是第 0 列的根级 fence，不得缩进、嵌套或放进引用块/列表：")
+    for e in layout_errors: print(f"   {e}")
+    sys.exit(1)
 
 # 每项：(标识, 判据, 处置)。exec=本测试真的执行它；exempt=写明为何不执行。
 MANIFEST=[
@@ -229,61 +135,54 @@ fi
 cp "$DOC" "$WORK/unknown-fence.md"
 cat >> "$WORK/unknown-fence.md" <<'BAD'
 
-  ```sh
-  echo "indented unknown language tag"
-  ```
+```sh
+echo "root unknown language tag"
+```
 BAD
 unk_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/unknown-fence.md" "$WORK/negative-extract" 2>&1)
 unk_rc=$?
-if [ "$unk_rc" -eq 1 ] && grep -qF "未登记的可运行块" <<<"$unk_out"; then
+if [ "$unk_rc" -eq 1 ] && grep -qF '[sh] echo "root unknown language tag"' <<<"$unk_out"; then
   ok "块清单能报未知 fence 标签"
 else
   bad "块清单能报未知 fence 标签" "rc=$unk_rc out=$unk_out"
 fi
-cp "$DOC" "$WORK/quoted-fence.md"
-cat >> "$WORK/quoted-fence.md" <<'BAD'
+# 格式收窄负例：非根级、嵌套或未闭合的类 fence 行都必须以格式诊断失败，并点名触发行。
+# 这里不区分 CommonMark 是否真把它当 fence（缩进代码、HTML 注释后续行等），一律拒绝。
+layout_case(){ # $1=夹具名 $2=断言名 $3=诊断中必须出现的片段；追加正文从 stdin 读
+  cp "$DOC" "$WORK/$1.md"; cat >> "$WORK/$1.md"
+  local out rc
+  out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/$1.md" "$WORK/negative-extract" 2>&1); rc=$?
+  if [ "$rc" -eq 1 ] && grep -qF "承载文档格式不合规" <<<"$out" && grep -qF -- "$3" <<<"$out"; then
+    ok "$2"
+  else
+    bad "$2" "rc=$rc out=$out"
+  fi
+}
+layout_case indented-fence "块清单拒绝 1-3 空格缩进的 fence" ':   ```sh' <<'BAD'
+
+  ```sh
+  echo "indented unknown language tag"
+  ```
+BAD
+layout_case quoted-fence "块清单拒绝引用块内 fence" ': > ```bash' <<'BAD'
 
 > ```bash
 > echo "unregistered quoted fence"
 > ```
 BAD
-q_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/quoted-fence.md" "$WORK/negative-extract" 2>&1)
-q_rc=$?
-if [ "$q_rc" -eq 1 ] && grep -qF "未登记的可运行块" <<<"$q_out"; then
-  ok "块清单能报引用块内未登记代码块"
-else
-  bad "块清单能报引用块内未登记代码块" "rc=$q_rc out=$q_out"
-fi
-cp "$DOC" "$WORK/list-marker-fence.md"
-cat >> "$WORK/list-marker-fence.md" <<'BAD'
+layout_case list-marker-fence "块清单拒绝列表标记行 fence" ': - ```bash' <<'BAD'
 
 - ```bash
   echo "unregistered marker-line fence"
   ```
 BAD
-lm_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/list-marker-fence.md" "$WORK/negative-extract" 2>&1)
-lm_rc=$?
-if [ "$lm_rc" -eq 1 ] && grep -qF '[bash] echo "unregistered marker-line fence"' <<<"$lm_out"; then
-  ok "块清单能报列表标记行未登记代码块"
-else
-  bad "块清单能报列表标记行未登记代码块" "rc=$lm_rc out=$lm_out"
-fi
-cp "$DOC" "$WORK/ordered-marker-fence.md"
-cat >> "$WORK/ordered-marker-fence.md" <<'BAD'
+layout_case ordered-marker-fence "块清单拒绝有序列表标记行 fence" ': 100. ```bash' <<'BAD'
 
 100. ```bash
      echo "unregistered ordered-marker-line fence"
      ```
 BAD
-olm_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/ordered-marker-fence.md" "$WORK/negative-extract" 2>&1)
-olm_rc=$?
-if [ "$olm_rc" -eq 1 ] && grep -qF '[bash] echo "unregistered ordered-marker-line fence"' <<<"$olm_out"; then
-  ok "块清单能报有序列表标记行未登记代码块"
-else
-  bad "块清单能报有序列表标记行未登记代码块" "rc=$olm_rc out=$olm_out"
-fi
-cp "$DOC" "$WORK/list-continuation-fence.md"
-cat >> "$WORK/list-continuation-fence.md" <<'BAD'
+layout_case list-continuation-fence "块清单拒绝有序列表续行 fence" ':      ```bash' <<'BAD'
 
 100. Instructions
 
@@ -291,15 +190,7 @@ cat >> "$WORK/list-continuation-fence.md" <<'BAD'
      echo "unregistered ordered-list continuation fence"
      ```
 BAD
-lc_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/list-continuation-fence.md" "$WORK/negative-extract" 2>&1)
-lc_rc=$?
-if [ "$lc_rc" -eq 1 ] && grep -qF '[bash] echo "unregistered ordered-list continuation fence"' <<<"$lc_out"; then
-  ok "块清单能报有序列表续行未登记代码块"
-else
-  bad "块清单能报有序列表续行未登记代码块" "rc=$lc_rc out=$lc_out"
-fi
-cp "$DOC" "$WORK/list-dedent-fence.md"
-cat >> "$WORK/list-dedent-fence.md" <<'BAD'
+layout_case list-dedent-fence "块清单拒绝缩进回退才闭合的列表 fence" ':      ```bash' <<'BAD'
 
 100. Instructions
 
@@ -307,38 +198,82 @@ cat >> "$WORK/list-dedent-fence.md" <<'BAD'
      echo "unclosed continuation fence closed by dedent"
 Outside paragraph closes the list-nested fence.
 BAD
-ld_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/list-dedent-fence.md" "$WORK/negative-extract" 2>&1)
-ld_rc=$?
-if [ "$ld_rc" -eq 1 ] && grep -qF '[bash] echo "unclosed continuation fence closed by dedent"' <<<"$ld_out"; then
-  ok "块清单能报缩进回退闭合的列表代码块"
-else
-  bad "块清单能报缩进回退闭合的列表代码块" "rc=$ld_rc out=$ld_out"
-fi
-cp "$DOC" "$WORK/indented-code-control.md"
-cat >> "$WORK/indented-code-control.md" <<'GOOD'
-
--     ```bash
-      echo "5-space indented code on list-marker line is not a runnable fence"
-      ```
-
-Root paragraph closes the list before root-level indented code.
-100. wrapped numeral stays inside paragraph per CommonMark list-interruption rule
-
-     ```bash
-     echo "5-space root indented code after paragraph is not a runnable fence"
-     ```
+layout_case root-indented-fence "块清单拒绝 4 空格根级缩进的类 fence 行" ':     ```bash' <<'BAD'
 
     ```bash
-    echo "4-space root indented code is not a runnable fence"
+    echo "4-space root indented fence lookalike"
     ```
-GOOD
-mkdir -p "$WORK/indented-extract"
-ic_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/indented-code-control.md" "$WORK/indented-extract" 2>&1)
-ic_rc=$?
-if [ "$ic_rc" -eq 0 ] && grep -qF "块清单：共 12 个" <<<"$ic_out"; then
-  ok "块清单不误报 4+ 空格缩进代码块"
+BAD
+layout_case html-comment-list-fence "块清单拒绝 HTML 注释后列表续行 fence" ':      ```bash' <<'BAD'
+
+<!-- note -->
+100. Instructions
+
+     ```bash
+     echo "fence after html comment"
+     ```
+BAD
+# 用进程替换喂输入而不是管道：管道会把 layout_case 放进子 shell，ok/bad 计数随之丢失。
+layout_case tab-heading-fence "块清单拒绝制表符标题近似后的缩进 fence" ':      ```bash' \
+  < <(printf '\nOrdinary text\n\t# heading-like text\n100.\n\n     ```bash\n     echo "tab heading near miss"\n     ```\n')
+# U+2028 不是 CommonMark 行尾：整行是段落，下面的 ``` 才是真开头，体内的 ```bash 必须报嵌套。
+layout_case u2028-line-separator "块清单不在 U+2028 处断行" 'fence 体内）: ```bash' \
+  < <(printf '\nOrdinary prose\342\200\250```bash\necho phantom\n```\n```bash\necho "real fence after u2028 phantom"\n```\n')
+# 开头 BOM 后紧跟的 fence 会被渲染器当成真开头并吞到 EOF，必须报错而不是沿用原清单。
+# 自包含夹具，不依赖真实文档里有没有更长的 ~ 闭合行。
+printf '\357\273\277~~~bash\necho "bom unclosed fence"\n' > "$WORK/bom-fence.md"
+bom_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/bom-fence.md" "$WORK/negative-extract" 2>&1)
+bom_rc=$?
+if [ "$bom_rc" -eq 1 ] && grep -qF "承载文档格式不合规" <<<"$bom_out" && grep -qF "第 1 行起的 fence 未闭合" <<<"$bom_out"; then
+  ok "块清单识别 BOM 后的首行 fence"
 else
-  bad "块清单不误报 4+ 空格缩进代码块" "rc=$ic_rc out=$ic_out"
+  bad "块清单识别 BOM 后的首行 fence" "rc=$bom_rc out=$bom_out"
+fi
+# 闭合但未登记的 BOM 首行 fence 走块清单校验，必须按未登记块失败。
+{ printf '\357\273\277~~~bash\necho "bom closed unregistered fence"\n~~~\n'; cat "$DOC"; } > "$WORK/bom-closed-fence.md"
+bomc_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/bom-closed-fence.md" "$WORK/negative-extract" 2>&1)
+bomc_rc=$?
+if [ "$bomc_rc" -eq 1 ] && grep -qF '[bash] echo "bom closed unregistered fence"' <<<"$bomc_out"; then
+  ok "块清单报 BOM 后已闭合的未登记 fence"
+else
+  bad "块清单报 BOM 后已闭合的未登记 fence" "rc=$bomc_rc out=$bomc_out"
+fi
+layout_case comment-swallow-fence "块清单拒绝根级 fence 体内的嵌套开头行" 'fence 体内）: ```bash' <<'BAD'
+
+<!--
+```
+-->
+```bash
+echo "fence hidden behind a comment-swallowed phantom block"
+```
+BAD
+layout_case tilde-in-backtick-fence "块清单拒绝反引号 fence 体内的波浪线 fence" 'fence 体内）: ~~~' <<'BAD'
+
+```bash
+~~~
+echo "nested tilde fence"
+~~~
+```
+BAD
+layout_case unclosed-root-fence "块清单拒绝未闭合的根级 fence" 'fence 未闭合' <<'BAD'
+
+```bash
+echo "unclosed root fence reaches EOF"
+BAD
+cp "$DOC" "$WORK/inline-span-control.md"
+cat >> "$WORK/inline-span-control.md" <<'GOOD'
+
+```inline``` at line start is a code span, not a fence.
+- ```list item``` inline span stays prose.
+> ```quoted``` inline span stays prose.
+GOOD
+mkdir -p "$WORK/inline-extract"
+is_out=$(EXPECTED_MANIFEST_IDS="$EXPECTED_MANIFEST_IDS" python3 "$WORK/check-block-manifest.py" "$WORK/inline-span-control.md" "$WORK/inline-extract" 2>&1)
+is_rc=$?
+if [ "$is_rc" -eq 0 ] && grep -qF "块清单：共 12 个" <<<"$is_out"; then
+  ok "块清单不把行首行内代码当 fence"
+else
+  bad "块清单不把行首行内代码当 fence" "rc=$is_rc out=$is_out"
 fi
 empty_inv_out=$(EXPECTED_MANIFEST_IDS="" python3 "$WORK/check-block-manifest.py" "$DOC" "$WORK/negative-extract" 2>&1)
 empty_inv_rc=$?

@@ -26,7 +26,7 @@ Command: `CCL_SKILL_BASE_REF=origin/main bash skills/skill-extraction-workflow/s
 | `T1b` | `testing-strategy`: `skills/testing-strategy/scripts/lang-basics-ast-check.test.sh` | `passed=12 failed=3` (`ast.IfExp` ternary fake-success return exited `0`, count `0 != 2`, unreadable subdir printed `no Python files under directory`) | **`passed=19 failed=0`** (`exit 0`, `-B -W error` clean) |
 | `T2` | `skill-extraction-workflow`: `skills/skill-extraction-workflow/scripts/test_governing_chain_diff.sh` | `18 passed, 5 failed` (initial pre-fix RED on `governing-chain-diff.py`: 4-backtick outer fence extracted `1` inner row & dropped post-block row `0 != 1`, `~~~` inside ```` ``` ```` got `0 != 1`, inline ```` ```--force``` ```` got `0 != 1`, poisoned `GIT_DIR` exited `2`; plus challenge/delta regressions for list-nested dedent, `U+00A0`, marker-line fences, 5-space indented code on list-marker lines, list-nested thematic breaks, `GIT_CONFIG_GLOBAL/SYSTEM=/dev/null`, and promisor `GIT_NO_LAZY_FETCH=1` verified with a paired `read_rev` spy control on `git 2.39.5`; `Decision Persistence` routing & substance pinned and mutation-killed via `M38` in `test_ai_coding_implementation_gates.sh`) | **`governing-chain-diff: 32 passed, 0 failed`** (`exit 0`; `test_ai_coding_implementation_gates.sh` `ok`) |
 | `T3` | `test-artifact-management`: `python3 -m pytest -q skills/test-artifact-management/references/test_gen_report.py` | `3 failed` (`xml.etree.ElementTree.ParseError` crash in `parse_junit` and `collect_results`; un-scrubbed `GIT_DIR` in `_default_author`/`_default_version`; plus challenge/delta regressions for element- & attribute-namespaced XML, `ValueError` multibyte encodings, minimal-mode and columnar `+record-list` full-Bitable-mode mixed valid+corrupt/namespaced CLI baseline preservation, `matrix_gate: false` `excluded_missing_files` scope, and Step 9 batch `信息流转` preflight) | **`193 passed`** (`exit 0`) |
-| `T4` | `multi-perspective-research`: `skills/multi-perspective-research/scripts/test-public-data-acquisition-recipes.sh` + `shellcheck -S warning` | `失败 6` (missing/co-deleted `"exempt"` `MANIFEST` block exited `0`; pre-existing leaf symlinks bypassed `return 2` (`accept` read target MIME -> `rc=0` `SKIP` on JSON target or `rc=1` on mismatch, and `ln` failed `rc=1` on dangling symlinks); intermediate parent symlink returned `0` `SKIP` / wrote outside `$OUT`; `pagerun.sh` lacked `$WORKDIR/bin` on `PATH` under system `curl 7.88.1`; plus delta regressions for `CDPATH`-sensitive `OUT=data`, `set -u` unset/empty `OUT`, `OUT=./data` with `data/`, tilde/indented/quoted/bullet-marker/ordered-marker/list-continuation/dedent-closed unregistered fences, 4+-space & paragraph-wrapped `100.` indented-code controls, and publication-entry directory & directory-symlink collisions) | **`通过 78，失败 0` (`public_data_acquisition_recipes_ok`)** + **`shellcheck -S warning` `0` warnings** |
+| `T4` | `multi-perspective-research`: `skills/multi-perspective-research/scripts/test-public-data-acquisition-recipes.sh` + `shellcheck -S warning` | `失败 6` (missing/co-deleted `"exempt"` `MANIFEST` block exited `0`; pre-existing leaf symlinks bypassed `return 2` (`accept` read target MIME -> `rc=0` `SKIP` on JSON target or `rc=1` on mismatch, and `ln` failed `rc=1` on dangling symlinks); intermediate parent symlink returned `0` `SKIP` / wrote outside `$OUT`; `pagerun.sh` lacked `$WORKDIR/bin` on `PATH` under system `curl 7.88.1`; plus delta regressions for `CDPATH`-sensitive `OUT=data`, `set -u` unset/empty `OUT`, `OUT=./data` with `data/`, tilde/indented/quoted/bullet-marker/ordered-marker/list-continuation/dedent-closed unregistered fences, 4+-space & paragraph-wrapped `100.` indented-code controls, and publication-entry directory & directory-symlink collisions) | **`通过 88，失败 0` (`public_data_acquisition_recipes_ok`)** + **`shellcheck -S warning` `0` warnings** (after the §3b carrier-format replacement; `78/78` at the prior candidate) |
 
 ## 3. Applied Differential Killing-Mutation Walk (`M01`–`M42`)
 
@@ -72,10 +72,65 @@ Executed in a disposable `tempfile.TemporaryDirectory` copy with SHA-256 verific
 | `M36` | `governing-chain-diff.py`: call `list_stack.clear()` unconditionally on `_THEMATIC_BREAK` | `rc=0` (`32/32`) | `rc=1` — `FAIL fence: list-nested thematic break retains enclosing list for unclosed fence dedent expected 1 row(s), got 0` |
 | `M37` | `client-terminal-ansi-check.py`: omit `os.path.realpath(arg)` from `containment_roots` on markerless directory args (`containment_roots = (anchor_dir,)`) | `rc=0` (`36/36`) | `rc=1` — `FAIL - symlinked markerless directory scan does NOT exempt symlink escaping scanned dir` |
 | `M38` | `design-and-ledger-extraction.md`: remove `Decision Persistence` durable-trace bullet (`retain rule origin, source IDs read before drafting, and concrete observations`) | `rc=0` (`ok`) | `rc=1` — `FAIL: ledger split (substance: Decision Persistence retains rule origin, pre-draft source IDs, and observations)` |
-| `M39` | `test-public-data-acquisition-recipes.sh`: omit cross-line list-container tracking (`containers.append(['list', _cind_rel, False])`) in `check-block-manifest.py` | `rc=0` (`78/78`) | `rc=1` — `FAIL 块清单能报有序列表续行未登记代码块` ; `FAIL 块清单能报缩进回退闭合的列表代码块` |
+| `M39` | `test-public-data-acquisition-recipes.sh`: omit cross-line list-container tracking (`containers.append(['list', _cind_rel, False])`) in `check-block-manifest.py` | `rc=0` (`78/78`) | `rc=1` — `FAIL 块清单能报有序列表续行未登记代码块` ; `FAIL 块清单能报缩进回退闭合的列表代码块` **Retired by §3b**: the mutated CommonMark container code was deleted. |
 | `M40` | `gen_report.py`: record `matrix_gate: false` invalid JUnit XML in `missing_files` instead of `excluded_missing_files` | `rc=0` (`193/193`) | `rc=1` — `FAILED skills/test-artifact-management/references/test_gen_report.py::test_collect_results_corrupt_junit_xml_records_infra_missing_and_preserves_baseline` |
-| `M41` | `test-public-data-acquisition-recipes.sh`: advance post-marker padding from `_rem` instead of `_rem[_mi.start(3):]` at `_mcol_end` in `check-block-manifest.py` | `rc=0` (`78/78`) | `rc=1` — `FAIL 块清单能报列表标记行未登记代码块` ; `FAIL 块清单能报有序列表标记行未登记代码块` |
-| `M42` | `test-public-data-acquisition-recipes.sh`: disable CommonMark §5.2 `_in_para` list-interruption guard (`int(_mnum) != 1` / empty marker) in `check-block-manifest.py` | `rc=0` (`78/78`) | `rc=1` — `FAIL 块清单不误报 4+ 空格缩进代码块` |
+| `M41` | `test-public-data-acquisition-recipes.sh`: advance post-marker padding from `_rem` instead of `_rem[_mi.start(3):]` at `_mcol_end` in `check-block-manifest.py` | `rc=0` (`78/78`) | `rc=1` — `FAIL 块清单能报列表标记行未登记代码块` ; `FAIL 块清单能报有序列表标记行未登记代码块` **Retired by §3b**: the mutated CommonMark container code was deleted. |
+| `M42` | `test-public-data-acquisition-recipes.sh`: disable CommonMark §5.2 `_in_para` list-interruption guard (`int(_mnum) != 1` / empty marker) in `check-block-manifest.py` | `rc=0` (`78/78`) | `rc=1` — `FAIL 块清单不误报 4+ 空格缩进代码块` **Retired by §3b**: the mutated CommonMark container code was deleted. |
+
+## 3b. Carrier-Format Replacement of the Fence Scanner (`recurring-class-decision: replace`)
+
+Every review round from the original challenge through delta pass 6 reported a new same-class misparse in the hand-written CommonMark container scanner. The final round's HTML-comment counterexample exited `0` with the fence missing from the inventory. The scanner now decodes with `utf-8-sig` (a renderer skips a leading BOM) and splits lines on LF only, which matches CommonMark line endings once `open()` has normalised CR and CRLF. It enumerates only column-0 root fences and fails closed on:
+
+- every other fence-like line, after stripping blockquote, list-marker and whitespace prefixes;
+- any fence-like line inside a root fence body that is not its closer;
+- any unclosed root fence.
+
+The decision record is the last `multi-perspective-research` row of `skills/skill-extraction-workflow/references/source-register.md`.
+
+- **Pre-fix RED**:
+  - Scanner: the prior scanner, given the document plus `<!-- note -->` / `100. Instructions` / a five-space `bash` fence, printed `块清单：共 12 个` and exited `rc=0`. It did the same with the tab-indented heading near miss. The replacement exits `rc=1` with `承载文档格式不合规` and names the offending line in both cases and in a comment-swallowed phantom fence.
+  - Suite: the tab-heading case was fed to `layout_case` through a pipe, so its result counter was lost in a subshell. Row `N8-baseline` shows that form exiting `rc=0` while printing a `FAIL`. The case now reads its input through process substitution.
+  - Decoding: with plain `utf-8`, a carrier that starts with a BOM followed by a tilde fence kept the original inventory, so the fence the renderer opens was missed (row `N9`).
+- **Post-fix** (candidate after the review and challenge fixes): `test-public-data-acquisition-recipes.sh` `通过 88，失败 0`; `shellcheck -S warning` clean.
+- **Review-pass dispositions**:
+  - The review of the first replacement commit returned P1 U+2028 line splitting (fixed, `N7`) and P1 the pipe-subshell counter loss (fixed, `N8`). Its two P2s asked for a verbatim mutant log, the block inventory and candidate-bound lane results. They are addressed by this section and by the §5 lane rows.
+  - The challenge of the fixed candidate returned P1 the leading-BOM opener (fixed, `N9`) and two P2s about context missing from the packet. Source check: `bad()` increments `fail` in the parent shell, and the suite ends with `[ "$fail" -eq 0 ] || exit 1`. `N8` shows a single failed layout case moving the top-level exit to `rc=1`. The manifest predicates and the exactly-one-claim check are unchanged from `5f25afc`, and the real carrier still yields the 12 blocks listed below. Dispositioned as verified from source; no code change.
+  - The incremental re-review of the challenge fixes (`8c21532..1833460`) returned no P0/P1 and four P2s, all accepted:
+    - The BOM fixture depended on the carrier having no longer tilde closer. It is now self-contained.
+    - A carrier-prefixed closed-but-unregistered BOM fixture was added, and `N9` now fails both BOM assertions.
+    - The lane rows below are bound to the final candidate.
+    - The replacement-decision row is restored to its earlier text, and the BOM fix is appended as a follow-up row, keeping the register append-only.
+  - These fixes are test-fixture and record changes only, proven by the suite and the mutant walk. No further external pass is owed.
+- **Real carrier inventory**: `public-data-acquisition.md` has no layout errors and yields these 12 blocks, each claimed by exactly one `MANIFEST` entry:
+
+1. `bash` — `UA="<项目或用途> <联系邮箱>"` (`fetch/accept`)
+2. no info string — `$ curl -s --show-error --max-filesize 1K …` (`curl-size-log`)
+3. no info string — `$ curl -s -o data.json "<当时返回 504 的接口>" ; echo $?` (`curl-fail-log`)
+4. `bash` — `# 快照清单：目标 URL 与各参数都由 curl 编码` (`cdx`)
+5. `bash` — `# 注意单引号：URL 里的 $ 不能进双引号…` (`catalog`)
+6. `bash` — `# 取数据集本身：$limit 只是"这一页多少行"，必须自己翻页` (`paging`)
+7. `python` — `# 跨年取同一语义字段：列名会改，先过别名表，再判缺` (`alias-parse`)
+8. `bash` — `# 启发式探针：目标页能抽出多少非空白字符` (`pdf-probe`)
+9. `bash` — `# MediaBox 可以很大…` (`pdf-render`)
+10. `swift` — `// swiftc -O -o ocr ocr.swift …` (`ocr`)
+11. `javascript` — `const TAGS = ['<PreferredTag>', …` (`tag-fallback`)
+12. `python` — `totA = sum(v[0] for v in rows.values())` (`col-attrib`)
+
+- **Applied differential mutants**: each mutant was applied to a temporary copy of the suite next to the original. Each turned only its owning assertions RED. Under `N1` the comment-swallow and nested-tilde cases are still rejected by the unregistered-block layer, and `N3` owns them. Verbatim runner output:
+
+```text
+control: rc=0 ['通过 88，失败 0'] fails=[]
+N1 drop sys.exit(1) after layout errors: rc=1 ['通过 78，失败 10'] fails=['块清单拒绝 1-3 空格缩进的 fence', '块清单拒绝引用块内 fence', '块清单拒绝列表标记行 fence', '块清单拒绝有序列表标记行 fence', '块清单拒绝有序列表续行 fence', '块清单拒绝缩进回退才闭合的列表 fence', '块清单拒绝 4 空格根级缩进的类 fence 行', '块清单拒绝 HTML 注释后列表续行 fence', '块清单拒绝制表符标题近似后的缩进 fence', '块清单拒绝未闭合的根级 fence']
+N2 _fence_like skips container-prefix strip: rc=1 ['通过 79，失败 9'] fails=['块清单拒绝 1-3 空格缩进的 fence', '块清单拒绝引用块内 fence', '块清单拒绝列表标记行 fence', '块清单拒绝有序列表标记行 fence', '块清单拒绝有序列表续行 fence', '块清单拒绝缩进回退才闭合的列表 fence', '块清单拒绝 4 空格根级缩进的类 fence 行', '块清单拒绝 HTML 注释后列表续行 fence', '块清单拒绝制表符标题近似后的缩进 fence']
+N3 disable nested check in fence body: rc=1 ['通过 85，失败 3'] fails=['块清单不在 U+2028 处断行', '块清单拒绝根级 fence 体内的嵌套开头行', '块清单拒绝反引号 fence 体内的波浪线 fence']
+N4 disable unclosed-fence error: rc=1 ['通过 86，失败 2'] fails=['块清单识别 BOM 后的首行 fence', '块清单拒绝未闭合的根级 fence']
+N5 drop backtick-in-info inline-span exclusion: rc=1 ['通过 87，失败 1'] fails=['块清单不把行首行内代码当 fence']
+N6 drop > from container prefix: rc=1 ['通过 87，失败 1'] fails=['块清单拒绝引用块内 fence']
+N7 split lines with str.splitlines(): rc=1 ['通过 87，失败 1'] fails=['块清单不在 U+2028 处断行']
+N8 break only the tab-heading needle (process substitution): rc=1 ['通过 87，失败 1'] fails=['块清单拒绝制表符标题近似后的缩进 fence']
+N8-baseline same break under the old pipe form: rc=0 ['通过 87，失败 0'] fails=['块清单拒绝制表符标题近似后的缩进 fence']
+N9 decode with utf-8 instead of utf-8-sig: rc=1 ['通过 86，失败 2'] fails=['块清单识别 BOM 后的首行 fence', '块清单报 BOM 后已闭合的未登记 fence']
+```
 
 ## 4. Obligation-Preservation Ledger (`678/678` Derived Rows) & Preservation Walk
 
